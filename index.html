@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>スギスギてまこ（推し熱量リズムゲーム）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- START -->
+  <section id="start" class="screen">
+    <div class="eyebrow">推し熱量リズムゲーム</div>
+    <h1>スギスギてまこ</h1>
+    <p class="sub">好きな曲を読み込んで、矢印の方向にスワイプ！<br>推し熱量ゲージを溜めて限界突破しよう。</p>
+    <div class="card">
+      <label class="upload-zone" id="uploadZone" for="audioInput">
+        <div class="big">🎵</div>
+        <div class="label" id="uploadLabel">タップして音楽ファイルを選ぶ（mp3等）</div>
+        <div class="fname" id="fileName"></div>
+      </label>
+      <input type="file" id="audioInput" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg">
+
+      <div class="field">
+        <label>BPM（テンポ）<span class="val" id="bpmVal">128</span></label>
+        <input type="range" id="bpmSlider" min="70" max="190" value="128">
+      </div>
+
+      <div class="field">
+        <label>難易度</label>
+        <div class="diff-group" id="diffGroup">
+          <button type="button" class="diff-btn" data-diff="easy">EASY</button>
+          <button type="button" class="diff-btn active" data-diff="normal">NORMAL</button>
+          <button type="button" class="diff-btn" data-diff="hard">HARD</button>
+        </div>
+      </div>
+
+      <button class="primary" id="startBtn" disabled>スタート</button>
+    </div>
+  </section>
+
+  <!-- PLAY -->
+  <section id="play" class="screen hidden">
+    <div class="hud">
+      <div class="block">
+        <div class="label">SCORE</div>
+        <div class="value" id="scoreVal">0</div>
+      </div>
+      <div class="block" style="text-align:right">
+        <div class="label">COMBO</div>
+        <div class="value combo" id="comboVal">0</div>
+      </div>
+    </div>
+
+    <div id="heatWrap"><div id="heatFill"></div></div>
+    <div id="heatLabel">熱量</div>
+
+    <div class="stage">
+      <div id="climaxFlash"></div>
+      <div id="climaxBanner">LIMIT BREAK!!</div>
+      <div class="judge" id="judgeText"></div>
+      <div class="ring" id="ring">
+        <div class="progress" id="ringProgress"></div>
+        <div class="arrow" id="arrowGlyph">–</div>
+      </div>
+    </div>
+
+    <div id="mascotWrap">
+      <canvas id="mascot" width="96" height="96"></canvas>
+    </div>
+    <div class="hint" id="playHint">画面を上下左右にスワイプ！</div>
+    <div class="kbd-hint">キーボードでも操作できます　<kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&larr;</kbd><kbd>&rarr;</kbd></div>
+  </section>
+
+  <!-- RESULT -->
+  <section id="result" class="screen hidden">
+    <div class="eyebrow">RESULT</div>
+    <div class="rank" id="rankLabel">S</div>
+    <div class="card">
+      <div class="stat-row"><span>スコア</span><span id="rScore">0</span></div>
+      <div class="stat-row"><span>最大コンボ</span><span id="rCombo">0</span></div>
+      <div class="stat-row"><span>PERFECT</span><span id="rPerfect">0</span></div>
+      <div class="stat-row"><span>GOOD</span><span id="rGood">0</span></div>
+      <div class="stat-row"><span>MISS</span><span id="rMiss">0</span></div>
+      <button class="primary" id="retryBtn">もう一度あそぶ</button>
+      <button class="ghost" id="changeBtn">曲を変える</button>
+    </div>
+  </section>
+
+</div>
+<script src="js/game.js"></script>
+</body>
+</html>
