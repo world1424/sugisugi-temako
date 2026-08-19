@@ -4,7 +4,7 @@
   "description": "推し熱量リズムゲーム「スギスギてまこ」— 好きな曲を読み込んで遊べるブラウザ製リズムゲーム",
   "private": true,
   "scripts": {
-    "dev": "python3 -m http.server 5500",
+    "dev": "python3 -m http.server 5500 --bind 127.0.0.1",
     "start": "npm run dev"
   }
 }
