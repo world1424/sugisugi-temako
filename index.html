@@ -16,7 +16,7 @@
   <section id="start" class="screen">
     <div class="eyebrow">推し熱量リズムゲーム</div>
     <h1>スギスギてまこ</h1>
-    <p class="sub">好きな曲を読み込んで、矢印の方向にスワイプ！<br>推し熱量ゲージを溜めて限界突破しよう。</p>
+    <p class="sub">好きな曲を読み込んで、降ってくるノーツをタイミングよくタップ！<br>推し熱量ゲージを溜めて限界突破しよう。</p>
     <div class="card">
       <label class="upload-zone" id="uploadZone" for="audioInput">
         <div class="big">🎵</div>
@@ -63,16 +63,25 @@
       <div id="climaxFlash"></div>
       <div id="climaxBanner">LIMIT BREAK!!</div>
       <div class="judge" id="judgeText"></div>
-      <div class="ring" id="ring">
-        <div class="progress" id="ringProgress"></div>
-        <div class="arrow" id="arrowGlyph">–</div>
+      <div id="laneField">
+        <div class="lane" data-dir="up"><div class="notes" id="notesUp"></div></div>
+        <div class="lane" data-dir="down"><div class="notes" id="notesDown"></div></div>
+        <div class="lane" data-dir="left"><div class="notes" id="notesLeft"></div></div>
+        <div class="lane" data-dir="right"><div class="notes" id="notesRight"></div></div>
+        <div class="judgeLine"></div>
+        <div class="laneKeys">
+          <div class="laneKey up">⬆</div>
+          <div class="laneKey down">⬇</div>
+          <div class="laneKey left">⬅</div>
+          <div class="laneKey right">➡</div>
+        </div>
       </div>
     </div>
 
     <div id="mascotWrap">
       <img id="mascot" src="assets/mascot/idle_a.png" alt="">
     </div>
-    <div class="hint" id="playHint">画面を上下左右にスワイプ！</div>
+    <div class="hint" id="playHint">降ってきたらレーンをタップ！</div>
     <div class="kbd-hint">キーボードでも操作できます　<kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&larr;</kbd><kbd>&rarr;</kbd></div>
   </section>
 

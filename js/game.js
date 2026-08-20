@@ -15,9 +15,6 @@
   const comboVal = byId('comboVal');
   const heatFill = byId('heatFill');
   const heatWrap = byId('heatWrap');
-  const ring = byId('ring');
-  const ringProgress = byId('ringProgress');
-  const arrowGlyph = byId('arrowGlyph');
   const judgeText = byId('judgeText');
   const climaxFlash = byId('climaxFlash');
   const climaxBanner = byId('climaxBanner');
@@ -65,6 +62,19 @@
     ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right',
     w:'up', s:'down', a:'left', d:'right', W:'up', S:'down', A:'left', D:'right'
   };
+  const FALL_DURATION = 1.1; // seconds a note takes to fall from the top of the lane to the judge line
+  let spawnIdx = 0;
+
+  const LANE_CONTAINERS = { up: byId('notesUp'), down: byId('notesDown'), left: byId('notesLeft'), right: byId('notesRight') };
+  const laneEls = document.querySelectorAll('#laneField .lane');
+  laneEls.forEach(function(laneEl){
+    const dir = laneEl.dataset.dir;
+    laneEl.addEventListener('pointerdown', function(){
+      laneEl.classList.add('pressed');
+      setTimeout(function(){ laneEl.classList.remove('pressed'); }, 120);
+      handleLaneHit(dir);
+    });
+  });
 
   // ---------- Start screen wiring ----------
   audioInput.addEventListener('change', function(e){
@@ -102,7 +112,7 @@
     const dir = KEY_DIR[e.key];
     if(!dir) return;
     e.preventDefault();
-    handleSwipe(dir);
+    handleLaneHit(dir);
   });
 
   // ---------- Game flow ----------
@@ -120,14 +130,13 @@
   }
 
   function resetPlayState(){
-    score = 0; combo = 0; maxCombo = 0; heat = 8; noteIdx = 0;
+    score = 0; combo = 0; maxCombo = 0; heat = 8; noteIdx = 0; spawnIdx = 0;
     limitBreak = false; reactMood = null; reactUntil = 0;
     counts = { perfect:0, good:0, miss:0 };
     scoreVal.textContent = '0';
     comboVal.textContent = '0';
     updateHeat();
-    arrowGlyph.textContent = '–';
-    arrowGlyph.className = 'arrow';
+    Object.keys(LANE_CONTAINERS).forEach(function(dir){ LANE_CONTAINERS[dir].innerHTML = ''; });
     mascotBeatOn = null;
     mascot.style.setProperty('--beat-dur', (60 / bpm) + 's');
     drawMascot(0);
@@ -153,26 +162,47 @@
 
   function tick(){
     const now = audioEl.currentTime;
-    // advance current target note
-    while(noteIdx < notes.length && notes[noteIdx].judged) noteIdx++;
-    const cur = notes[noteIdx];
     const cfg = DIFFICULTIES[difficulty];
-    if(cur){
-      arrowGlyph.textContent = GLYPH[cur.dir];
-      arrowGlyph.className = 'arrow ' + cur.dir;
-      const remain = cur.time - now;
-      const total = 0.9; // ring fill duration
-      const p = Math.max(0, Math.min(100, (1 - remain/total) * 100));
-      ringProgress.style.setProperty('--p', p);
-      if(remain < -cfg.good && !cur.judged){
-        cur.judged = true;
-        registerMiss();
-      }
-    } else {
-      ringProgress.style.setProperty('--p', 0);
+
+    // spawn falling-note elements ahead of their hit time
+    while(spawnIdx < notes.length && notes[spawnIdx].time - now <= FALL_DURATION){
+      spawnNote(notes[spawnIdx]);
+      spawnIdx++;
     }
+
+    // auto-miss any note that passed the judge line unjudged
+    while(noteIdx < notes.length){
+      const n = notes[noteIdx];
+      if(n.judged){ noteIdx++; continue; }
+      if(now - n.time > cfg.good){
+        n.judged = true;
+        removeNoteEl(n);
+        registerMiss();
+        noteIdx++;
+        continue;
+      }
+      break;
+    }
+
     drawMascot(now);
     rafId = requestAnimationFrame(tick);
+  }
+
+  function spawnNote(n){
+    const el = document.createElement('div');
+    el.className = 'note';
+    el.textContent = GLYPH[n.dir];
+    el.style.animationDuration = FALL_DURATION + 's';
+    LANE_CONTAINERS[n.dir].appendChild(el);
+    n.el = el;
+  }
+
+  function removeNoteEl(n){
+    if(!n.el) return;
+    const el = n.el;
+    n.el = null;
+    el.classList.add('judged');
+    setTimeout(function(){ el.remove(); }, 200);
   }
 
   function endGame(){
@@ -197,38 +227,25 @@
     return 'D';
   }
 
-  // ---------- Swipe input ----------
-  let touchStart = null;
-  const playSurface = screens.play;
-  playSurface.addEventListener('pointerdown', function(e){ touchStart = { x:e.clientX, y:e.clientY, t:performance.now() }; });
-  playSurface.addEventListener('pointerup', function(e){
-    if(!touchStart || !audioEl) return;
-    const dx = e.clientX - touchStart.x, dy = e.clientY - touchStart.y;
-    const dist = Math.hypot(dx, dy);
-    touchStart = null;
-    if(dist < 24) return; // too small to count as swipe
-    let dir;
-    if(Math.abs(dx) > Math.abs(dy)) dir = dx > 0 ? 'right' : 'left';
-    else dir = dy > 0 ? 'down' : 'up';
-    handleSwipe(dir);
-  });
-
-  function handleSwipe(dir){
+  // ---------- Lane tap / key input ----------
+  function handleLaneHit(dir){
     if(!audioEl) return;
     const now = audioEl.currentTime;
     const cfg = DIFFICULTIES[difficulty];
-    // find closest unjudged note within window
+    // find the closest unjudged note in this lane within the timing window
     let best = null, bestDelta = Infinity;
     for(let i = noteIdx; i < notes.length; i++){
       const n = notes[i];
       if(n.judged) continue;
+      if(n.time > now + cfg.good) break; // notes are time-sorted; nothing further can be in range
+      if(n.dir !== dir) continue;
       const delta = Math.abs(n.time - now);
-      if(delta > cfg.good + 0.05) { if(n.time > now + cfg.good) break; continue; }
+      if(delta > cfg.good + 0.05) continue;
       if(delta < bestDelta){ bestDelta = delta; best = n; }
     }
-    if(!best){ return; } // swipe outside any window: ignored, not penalized
+    if(!best){ return; } // tap outside any window: ignored, not penalized
     best.judged = true;
-    if(best.dir !== dir){ registerMiss(); return; }
+    removeNoteEl(best);
     if(bestDelta <= cfg.perfect) registerHit('perfect', 100);
     else registerHit('good', 50);
   }
