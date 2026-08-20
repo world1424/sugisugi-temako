@@ -18,6 +18,8 @@
   const judgeText = byId('judgeText');
   const climaxFlash = byId('climaxFlash');
   const climaxBanner = byId('climaxBanner');
+  const cutinWrap = byId('cutinWrap');
+  const cutinImg = byId('cutinImg');
   const mascot = byId('mascot');
   const retryBtn = byId('retryBtn');
   const changeBtn = byId('changeBtn');
@@ -55,6 +57,12 @@
   let leadIn = 1.4;       // seconds before first note
   let reactMood = null;   // transient mascot reaction: 'perfect' | 'good' | 'miss'
   let reactUntil = 0;
+  let costume = 'casual'; // 'casual' | 'idol' — unlocked by combo, stays for the rest of the song
+  let cutinShown = false; // one cut-in per song from the combo milestone (limit break can also trigger it)
+
+  const COSTUME_COMBO = 15; // combo needed to unlock the idol costume
+  const CUTIN_COMBO = 30;   // combo needed to trigger the idol cut-in flourish
+  const CUTIN_IMAGES = ['assets/mascot/idol/cutin_1.png', 'assets/mascot/idol/cutin_2.png', 'assets/mascot/idol/cutin_3.png'];
 
   const DIRS = ['up','down','left','right'];
   const GLYPH = { up:'⬆', down:'⬇', left:'⬅', right:'➡' };
@@ -132,10 +140,12 @@
   function resetPlayState(){
     score = 0; combo = 0; maxCombo = 0; heat = 8; noteIdx = 0; spawnIdx = 0;
     limitBreak = false; reactMood = null; reactUntil = 0;
+    costume = 'casual'; cutinShown = false;
     counts = { perfect:0, good:0, miss:0 };
     scoreVal.textContent = '0';
     comboVal.textContent = '0';
     updateHeat();
+    cutinWrap.classList.remove('show');
     Object.keys(LANE_CONTAINERS).forEach(function(dir){ LANE_CONTAINERS[dir].innerHTML = ''; });
     mascotBeatOn = null;
     mascot.style.setProperty('--beat-dur', (60 / bpm) + 's');
@@ -261,6 +271,7 @@
     flashJudge(kind === 'perfect' ? 'PERFECT' : 'GOOD', kind);
     updateHud();
     checkLimitBreak();
+    checkComboMilestones();
   }
 
   function registerMiss(){
@@ -278,7 +289,25 @@
       limitBreak = true;
       climaxFlash.classList.remove('show'); void climaxFlash.offsetWidth; climaxFlash.classList.add('show');
       climaxBanner.classList.remove('show'); void climaxBanner.offsetWidth; climaxBanner.classList.add('show');
+      showCutin();
     }
+  }
+
+  function checkComboMilestones(){
+    if(costume === 'casual' && combo >= COSTUME_COMBO){
+      costume = 'idol';
+      mascotBeatOn = null; // force a sprite refresh on the next beat
+    }
+    if(!cutinShown && combo >= CUTIN_COMBO){
+      cutinShown = true;
+      showCutin();
+    }
+  }
+
+  function showCutin(){
+    const src = CUTIN_IMAGES[Math.floor(Math.random() * CUTIN_IMAGES.length)];
+    cutinImg.src = src;
+    cutinWrap.classList.remove('show'); void cutinWrap.offsetWidth; cutinWrap.classList.add('show');
   }
 
   function updateHud(){
@@ -303,19 +332,29 @@
 
   // ---------- Dancing mascot (sprite-based) ----------
   const MASCOT_SPRITES = {
-    idleA: 'assets/mascot/idle_a.png',
-    idleB: 'assets/mascot/idle_b.png',
-    happy: 'assets/mascot/happy.png',
-    sad: 'assets/mascot/sad.png',
-    heart: 'assets/mascot/heart.png'
+    casual: {
+      idleA: 'assets/mascot/idle_a.png',
+      idleB: 'assets/mascot/idle_b.png',
+      happy: 'assets/mascot/happy.png',
+      sad: 'assets/mascot/sad.png',
+      heart: 'assets/mascot/heart.png'
+    },
+    idol: {
+      idleA: 'assets/mascot/idol/idle_idol_a.png',
+      idleB: 'assets/mascot/idol/idle_idol_b.png',
+      happy: 'assets/mascot/idol/happy_idol.png',
+      sad: 'assets/mascot/idol/sad_idol.png',
+      heart: 'assets/mascot/idol/grin_idol.png'
+    }
   };
   let mascotBeatOn = null; // which idle frame is currently shown ('idleA'/'idleB')
   let mascotSrc = null;
 
   function setMascotSprite(key){
-    if(mascotSrc === key) return;
-    mascotSrc = key;
-    mascot.src = MASCOT_SPRITES[key];
+    const tag = costume + ':' + key;
+    if(mascotSrc === tag) return;
+    mascotSrc = tag;
+    mascot.src = MASCOT_SPRITES[costume][key];
   }
 
   function drawMascot(nowSec){
@@ -333,10 +372,8 @@
     }
 
     const beatOn = Math.floor(nowSec / beatSec) % 2 === 0 ? 'idleA' : 'idleB';
-    if(beatOn !== mascotBeatOn){
-      mascotBeatOn = beatOn;
-      setMascotSprite(beatOn);
-    }
+    mascotBeatOn = beatOn;
+    setMascotSprite(beatOn); // no-ops internally if nothing actually changed
   }
 
 })();
