@@ -1,3 +1,6 @@
 .DS_Store
 node_modules/
 *.log
+
+# 実写真・作業用の元素材（本人写真を含むため管理対象外）
+mako/

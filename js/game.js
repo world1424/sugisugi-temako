@@ -22,7 +22,6 @@
   const climaxFlash = byId('climaxFlash');
   const climaxBanner = byId('climaxBanner');
   const mascot = byId('mascot');
-  const mascotCtx = mascot.getContext('2d');
   const retryBtn = byId('retryBtn');
   const changeBtn = byId('changeBtn');
 
@@ -129,6 +128,8 @@
     updateHeat();
     arrowGlyph.textContent = '–';
     arrowGlyph.className = 'arrow';
+    mascotBeatOn = null;
+    mascot.style.setProperty('--beat-dur', (60 / bpm) + 's');
     drawMascot(0);
   }
 
@@ -283,148 +284,42 @@
     judgeText.classList.add('show');
   }
 
-  // ---------- Pixel-art dancing mascot ----------
-  const PAL = {
-    skin: '#FFD9E8',
-    hairPink: '#FF3E7F',
-    hairCyan: '#2FE6D8',
-    body: '#FFD23F',
-    bodyShade: '#E8A93A',
-    dark: '#2A1235',
-    white: '#F5F0FF'
+  // ---------- Dancing mascot (sprite-based) ----------
+  const MASCOT_SPRITES = {
+    idleA: 'assets/mascot/idle_a.png',
+    idleB: 'assets/mascot/idle_b.png',
+    happy: 'assets/mascot/happy.png',
+    sad: 'assets/mascot/sad.png',
+    heart: 'assets/mascot/heart.png'
   };
-  const MASCOT_RES = 32; // internal pixel resolution -> scaled up for crisp pixel-art look
-  mascotCtx.imageSmoothingEnabled = false;
+  let mascotBeatOn = null; // which idle frame is currently shown ('idleA'/'idleB')
+  let mascotSrc = null;
+
+  function setMascotSprite(key){
+    if(mascotSrc === key) return;
+    mascotSrc = key;
+    mascot.src = MASCOT_SPRITES[key];
+  }
 
   function drawMascot(nowSec){
     const beatSec = 60 / bpm;
     const now = performance.now();
     const reacting = reactMood && now < reactUntil;
 
-    // continuous bounce synced to the beat (smooth up/down), extra bouncy while hype
-    const hype = combo >= 10;
-    const beatPhase = (nowSec % beatSec) / beatSec; // 0..1 within current beat
-    const bounce = Math.abs(Math.sin(beatPhase * Math.PI)) * (hype ? 5 : 3);
-    const armSwing = Math.sin((nowSec / beatSec) * Math.PI) * (hype ? 14 : 9);
-    const legStep = Math.sin((nowSec / beatSec) * Math.PI + Math.PI/2) * (hype ? 3 : 2);
-
-    const ctx = mascotCtx;
-    ctx.clearRect(0, 0, mascot.width, mascot.height);
-    ctx.save();
-    ctx.scale(mascot.width / MASCOT_RES, mascot.height / MASCOT_RES);
-
-    const cx = MASCOT_RES/2;
-    let bodyY = 20 - bounce;
-    let headTilt = 0;
-    let eyeMode = 'normal';
+    mascot.classList.toggle('reacting', reacting);
 
     if(reacting){
-      if(reactMood === 'perfect'){ eyeMode = 'happy'; bodyY -= 2; }
-      else if(reactMood === 'good'){ eyeMode = 'happy'; }
-      else if(reactMood === 'miss'){ eyeMode = 'x'; headTilt = 6; }
+      if(reactMood === 'perfect') setMascotSprite('heart');
+      else if(reactMood === 'good') setMascotSprite('happy');
+      else if(reactMood === 'miss') setMascotSprite('sad');
+      return;
     }
 
-    ctx.translate(cx, 0);
-    ctx.rotate(headTilt * Math.PI/180);
-
-    // ears / ribbons
-    ctx.strokeStyle = PAL.hairPink;
-    ctx.lineWidth = 2.4;
-    ctx.beginPath();
-    ctx.moveTo(-6, 9 - bounce*0.4);
-    ctx.quadraticCurveTo(-12, 2 - bounce*0.4, -8, -4 - bounce*0.4);
-    ctx.stroke();
-
-    ctx.strokeStyle = PAL.hairCyan;
-    ctx.beginPath();
-    ctx.moveTo(6, 9 - bounce*0.4);
-    ctx.quadraticCurveTo(12, 2 - bounce*0.4, 8, -4 - bounce*0.4);
-    ctx.stroke();
-
-    // head
-    ctx.fillStyle = PAL.skin;
-    circle(ctx, 0, 8 - bounce, 7);
-
-    // eyes
-    ctx.fillStyle = PAL.dark;
-    if(eyeMode === 'x'){
-      xMark(ctx, -3, 7 - bounce, 1.6);
-      xMark(ctx, 3, 7 - bounce, 1.6);
-    } else if(eyeMode === 'happy'){
-      arcEye(ctx, -3, 7 - bounce);
-      arcEye(ctx, 3, 7 - bounce);
-    } else {
-      circle(ctx, -3, 7 - bounce, 1.1);
-      circle(ctx, 3, 7 - bounce, 1.1);
+    const beatOn = Math.floor(nowSec / beatSec) % 2 === 0 ? 'idleA' : 'idleB';
+    if(beatOn !== mascotBeatOn){
+      mascotBeatOn = beatOn;
+      setMascotSprite(beatOn);
     }
-    // mouth
-    ctx.strokeStyle = PAL.dark;
-    ctx.lineWidth = 1.3;
-    ctx.beginPath();
-    ctx.arc(0, 9.5 - bounce, 2.4, 0.15*Math.PI, 0.85*Math.PI);
-    ctx.stroke();
-
-    // body
-    ctx.fillStyle = PAL.body;
-    roundRect(ctx, -7, bodyY, 14, 12, 6);
-    ctx.fill();
-
-    // arms (swing with the beat)
-    ctx.strokeStyle = PAL.body;
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-6, bodyY + 3);
-    ctx.lineTo(-10, bodyY + 3 - armSwing);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(6, bodyY + 3);
-    ctx.lineTo(10, bodyY + 3 + armSwing);
-    ctx.stroke();
-
-    // legs (alternate step)
-    ctx.strokeStyle = PAL.bodyShade;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(-3, bodyY + 12);
-    ctx.lineTo(-3 - legStep, bodyY + 16);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(3, bodyY + 12);
-    ctx.lineTo(3 + legStep, bodyY + 16);
-    ctx.stroke();
-
-    ctx.restore();
-  }
-
-  function circle(ctx, x, y, r){
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI*2);
-    ctx.fill();
-  }
-  function arcEye(ctx, x, y){
-    ctx.beginPath();
-    ctx.arc(x, y, 1.4, Math.PI, 0);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = PAL.dark;
-    ctx.stroke();
-  }
-  function xMark(ctx, x, y, s){
-    ctx.strokeStyle = PAL.dark;
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(x-s, y-s); ctx.lineTo(x+s, y+s);
-    ctx.moveTo(x-s, y+s); ctx.lineTo(x+s, y-s);
-    ctx.stroke();
-  }
-  function roundRect(ctx, x, y, w, h, r){
-    ctx.beginPath();
-    ctx.moveTo(x+r, y);
-    ctx.arcTo(x+w, y, x+w, y+h, r);
-    ctx.arcTo(x+w, y+h, x, y+h, r);
-    ctx.arcTo(x, y+h, x, y, r);
-    ctx.arcTo(x, y, x+w, y, r);
-    ctx.closePath();
   }
 
 })();
