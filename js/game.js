@@ -21,6 +21,7 @@
   const cutinWrap = byId('cutinWrap');
   const cutinImg = byId('cutinImg');
   const mascot = byId('mascot');
+  const reactImg = byId('reactImg');
   const retryBtn = byId('retryBtn');
   const changeBtn = byId('changeBtn');
 
@@ -146,8 +147,9 @@
     comboVal.textContent = '0';
     updateHeat();
     cutinWrap.classList.remove('show');
+    reactImg.classList.remove('show');
     Object.keys(LANE_CONTAINERS).forEach(function(dir){ LANE_CONTAINERS[dir].innerHTML = ''; });
-    mascotBeatOn = null;
+    bodySrc = null; reactSrc = null;
     mascot.style.setProperty('--beat-dur', (60 / bpm) + 's');
     drawMascot(0);
   }
@@ -295,8 +297,7 @@
 
   function checkComboMilestones(){
     if(costume === 'casual' && combo >= COSTUME_COMBO){
-      costume = 'idol';
-      mascotBeatOn = null; // force a sprite refresh on the next beat
+      costume = 'idol'; // setBodySprite/setReactSprite tags include costume, so this alone refreshes both sprites
     }
     if(!cutinShown && combo >= CUTIN_COMBO){
       cutinShown = true;
@@ -331,30 +332,37 @@
   }
 
   // ---------- Dancing mascot (sprite-based) ----------
+  // Left slot (reactImg) shows the judgment reaction; right slot (mascot) dances continuously
+  // and is never interrupted by reactions — the two are fully independent.
   const MASCOT_SPRITES = {
     casual: {
-      idleA: 'assets/mascot/idle_a.png',
-      idleB: 'assets/mascot/idle_b.png',
+      idle: ['assets/mascot/idle_a.png', 'assets/mascot/idle_b.png', 'assets/mascot/idle_c.png', 'assets/mascot/idle_d.png'],
       happy: 'assets/mascot/happy.png',
       sad: 'assets/mascot/cry.png',
       heart: 'assets/mascot/heart.png'
     },
     idol: {
-      idleA: 'assets/mascot/idol/idle_idol_a.png',
-      idleB: 'assets/mascot/idol/idle_idol_b.png',
+      idle: ['assets/mascot/idol/idle_idol_a.png', 'assets/mascot/idol/idle_idol_b.png', 'assets/mascot/idol/idle_idol_c.png', 'assets/mascot/idol/idle_idol_d.png'],
       happy: 'assets/mascot/idol/happy_idol.png',
       sad: 'assets/mascot/idol/sad_idol.png',
       heart: 'assets/mascot/idol/grin_idol.png'
     }
   };
-  let mascotBeatOn = null; // which idle frame is currently shown ('idleA'/'idleB')
-  let mascotSrc = null;
+  let bodySrc = null;
+  let reactSrc = null;
 
-  function setMascotSprite(key){
+  function setBodySprite(idx){
+    const tag = costume + ':idle:' + idx;
+    if(bodySrc === tag) return;
+    bodySrc = tag;
+    mascot.src = MASCOT_SPRITES[costume].idle[idx];
+  }
+
+  function setReactSprite(key){
     const tag = costume + ':' + key;
-    if(mascotSrc === tag) return;
-    mascotSrc = tag;
-    mascot.src = MASCOT_SPRITES[costume][key];
+    if(reactSrc === tag) return;
+    reactSrc = tag;
+    reactImg.src = MASCOT_SPRITES[costume][key];
   }
 
   function drawMascot(nowSec){
@@ -362,18 +370,17 @@
     const now = performance.now();
     const reacting = reactMood && now < reactUntil;
 
-    mascot.classList.toggle('reacting', reacting);
-
     if(reacting){
-      if(reactMood === 'perfect') setMascotSprite('heart');
-      else if(reactMood === 'good') setMascotSprite('happy');
-      else if(reactMood === 'miss') setMascotSprite('sad');
-      return;
+      const key = reactMood === 'perfect' ? 'heart' : reactMood === 'good' ? 'happy' : 'sad';
+      setReactSprite(key);
+      reactImg.classList.add('show');
+    } else {
+      reactImg.classList.remove('show');
     }
 
-    const beatOn = Math.floor(nowSec / beatSec) % 2 === 0 ? 'idleA' : 'idleB';
-    mascotBeatOn = beatOn;
-    setMascotSprite(beatOn); // no-ops internally if nothing actually changed
+    const idleFrames = MASCOT_SPRITES[costume].idle;
+    const frame = Math.floor(nowSec / beatSec) % idleFrames.length;
+    setBodySprite(frame);
   }
 
 })();
