@@ -131,6 +131,28 @@ button.ghost{
   letter-spacing:.14em; writing-mode: vertical-rl;
 }
 
+/* ---------- FEVER TIME ---------- */
+#play.fever{
+  background: radial-gradient(circle at 50% 55%, rgba(255,210,63,.13), transparent 62%);
+  animation: feverGlow .7s ease-in-out infinite alternate;
+}
+@keyframes feverGlow{
+  from{ background-color: rgba(255,210,63,0); }
+  to{ background-color: rgba(255,210,63,.05); }
+}
+#play.fever .note{
+  background: linear-gradient(140deg, #FFF3B0, var(--gold));
+  box-shadow:0 0 14px rgba(255,210,63,.75), 0 4px 10px rgba(0,0,0,.35);
+}
+#play.fever .judgeLine{
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  opacity:1; height:4px;
+}
+/* the gauge drains every frame during fever, so the smoothing transition must go */
+#play.fever #heatFill{ background: linear-gradient(0deg, var(--gold), #FFF6C8); transition:none; }
+#play.fever #heatLabel{ color: var(--gold); font-weight:700; }
+#play.fever .laneKey{ border-top-color: var(--gold); }
+
 .stage{
   position:relative; flex:1; width:100%; display:flex; align-items:center; justify-content:center;
   --judge-pos: 80%;
@@ -146,7 +168,25 @@ button.ghost{
 }
 .lane:first-child{ border-left:none; }
 .lane.pressed{ background: rgba(255,255,255,.09); }
+.lane.hit{ background: rgba(255,255,255,.18); }
 .notes{ position:absolute; inset:0; overflow:hidden; }
+
+/* Hit burst at the judge line */
+.burst{
+  position:absolute; left:50%; top:var(--judge-pos, 80%);
+  width:88px; height:88px; margin:-44px 0 0 -44px;
+  border-radius:50%; pointer-events:none; opacity:0;
+}
+.burst.pop{ animation: burstPop .4s ease-out forwards; }
+.burst.perfect{ animation-duration:.5s; }
+@keyframes burstPop{
+  0%{ opacity:.85; transform:scale(.3); }
+  100%{ opacity:0; transform:scale(1.7); }
+}
+.lane[data-dir="up"] .burst{ background: radial-gradient(circle, var(--cyan) 10%, transparent 68%); }
+.lane[data-dir="down"] .burst{ background: radial-gradient(circle, var(--pink) 10%, transparent 68%); }
+.lane[data-dir="left"] .burst{ background: radial-gradient(circle, var(--gold) 10%, transparent 68%); }
+.lane[data-dir="right"] .burst{ background: radial-gradient(circle, #7CFFB2 10%, transparent 68%); }
 
 .note{
   position:absolute; top:0; left:50%; width:74%; max-width:52px; aspect-ratio:1/1;

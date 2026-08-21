@@ -29,9 +29,9 @@
 
   // ---------- Difficulty ----------
   const DIFFICULTIES = {
-    easy:   { label:'EASY',   beatMul:3, perfect:0.22, good:0.42, missPenalty:6,  hitBonus:{ perfect:8, good:4 } },
-    normal: { label:'NORMAL', beatMul:2, perfect:0.15, good:0.32, missPenalty:10, hitBonus:{ perfect:6, good:3 } },
-    hard:   { label:'HARD',   beatMul:1, perfect:0.10, good:0.22, missPenalty:14, hitBonus:{ perfect:5, good:2 } }
+    easy:   { label:'EASY',   beatMul:3, perfect:0.22, good:0.42, missPenalty:6,  restChance:0.05, hitBonus:{ perfect:8, good:4 } },
+    normal: { label:'NORMAL', beatMul:2, perfect:0.15, good:0.32, missPenalty:10, restChance:0.12, hitBonus:{ perfect:6, good:3 } },
+    hard:   { label:'HARD',   beatMul:1, perfect:0.10, good:0.22, missPenalty:14, restChance:0.18, hitBonus:{ perfect:5, good:2 } }
   };
   let difficulty = 'normal';
 
@@ -52,7 +52,8 @@
   let noteIdx = 0;
   let score = 0, combo = 0, maxCombo = 0;
   let heat = 8;           // 0-100
-  let limitBreak = false; // true while heat is maxed out
+  let fever = false;      // FEVER TIME: a timed reward state entered when heat maxes out
+  let feverEndsAt = 0;    // audio-clock time (seconds) when the current fever expires
   let counts = { perfect:0, good:0, miss:0 };
   let rafId = null;
   let leadIn = 1.4;       // seconds before first note
@@ -63,6 +64,9 @@
 
   const COSTUME_COMBO = 15; // combo needed to unlock the idol costume
   const CUTIN_COMBO = 30;   // combo needed to trigger the idol cut-in flourish
+  const FEVER_DURATION = 9; // seconds a FEVER TIME lasts once the heat gauge maxes out
+  const FEVER_MULT = 2;     // score multiplier during fever
+  const HEAT_AFTER_FEVER = 20; // heat left over when fever ends, so it can be built again
   const CUTIN_IMAGES = ['assets/mascot/idol/cutin_1.png', 'assets/mascot/idol/cutin_2.png', 'assets/mascot/idol/cutin_3.png'];
 
   const DIRS = ['up','down','left','right'];
@@ -75,15 +79,66 @@
   let spawnIdx = 0;
 
   const LANE_CONTAINERS = { up: byId('notesUp'), down: byId('notesDown'), left: byId('notesLeft'), right: byId('notesRight') };
+  const LANE_BY_DIR = {};
   const laneEls = document.querySelectorAll('#laneField .lane');
   laneEls.forEach(function(laneEl){
     const dir = laneEl.dataset.dir;
+    LANE_BY_DIR[dir] = laneEl;
     laneEl.addEventListener('pointerdown', function(){
       laneEl.classList.add('pressed');
       setTimeout(function(){ laneEl.classList.remove('pressed'); }, 120);
       handleLaneHit(dir);
     });
   });
+
+  // ---------- Hit sound (WebAudio — synthesized, no asset files) ----------
+  const HIT_SOUND = {
+    perfect: { freq:1180, type:'triangle', dur:0.13, gain:0.20, sweep:1.6 },
+    good:    { freq:700,  type:'triangle', dur:0.10, gain:0.15, sweep:1.0 },
+    miss:    { freq:150,  type:'sawtooth', dur:0.18, gain:0.09, sweep:0.55 }
+  };
+  let audioCtx = null;
+
+  // Browsers only allow an AudioContext to start from a user gesture, so this is
+  // called from the start button's click handler.
+  function ensureAudioCtx(){
+    if(audioCtx) return audioCtx;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return null;
+    audioCtx = new AC();
+    return audioCtx;
+  }
+
+  function playHitSound(kind){
+    const ctx = audioCtx;
+    if(!ctx) return;
+    if(ctx.state === 'suspended') ctx.resume();
+    const cfg = HIT_SOUND[kind];
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = cfg.type;
+    osc.frequency.setValueAtTime(cfg.freq, t);
+    osc.frequency.exponentialRampToValueAtTime(cfg.freq * cfg.sweep, t + cfg.dur);
+    gain.gain.setValueAtTime(cfg.gain, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + cfg.dur); // exponential ramps can't reach 0
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + cfg.dur);
+  }
+
+  function flashLane(dir, kind){
+    const laneEl = LANE_BY_DIR[dir];
+    if(!laneEl) return;
+    laneEl.classList.add('hit');
+    setTimeout(function(){ laneEl.classList.remove('hit'); }, 110);
+    const burst = laneEl.querySelector('.burst');
+    if(!burst) return;
+    burst.className = 'burst ' + kind;
+    void burst.offsetWidth; // restart the animation
+    burst.classList.add('pop');
+  }
 
   // ---------- Start screen wiring ----------
   audioInput.addEventListener('change', function(e){
@@ -126,6 +181,7 @@
 
   // ---------- Game flow ----------
   function startGame(){
+    ensureAudioCtx(); // must be created from a user gesture, so do it on the start click
     showScreen('play');
     resetPlayState();
     if(audioEl){ audioEl.pause(); audioEl.currentTime = 0; }
@@ -140,8 +196,10 @@
 
   function resetPlayState(){
     score = 0; combo = 0; maxCombo = 0; heat = 8; noteIdx = 0; spawnIdx = 0;
-    limitBreak = false; reactMood = null; reactUntil = 0;
+    fever = false; feverEndsAt = 0; reactMood = null; reactUntil = 0;
     costume = 'casual'; cutinShown = false;
+    screens.play.classList.remove('fever');
+    byId('heatLabel').textContent = '熱量';
     counts = { perfect:0, good:0, miss:0 };
     scoreVal.textContent = '0';
     comboVal.textContent = '0';
@@ -154,14 +212,52 @@
     drawMascot(0);
   }
 
+  // Musical phrases instead of random directions: each pattern is a short run the
+  // hands can learn, and every pattern is played twice in a row so it registers as
+  // a groove rather than pure reaction.
+  const PATTERNS = [
+    ['left','up','down','right'],     // 階段（左→右）
+    ['right','down','up','left'],     // 階段（右→左）
+    ['left','right','left','right'],  // 左右交互
+    ['up','down','up','down'],        // 上下交互
+    ['left','left','right','right'],  // 2連ずつ
+    ['up','up','down','down'],
+    ['left','up','left','down'],      // 左軸押し
+    ['right','up','right','down'],    // 右軸押し
+    ['down','left','up','right']      // 時計回り
+  ];
+
   function buildChart(duration){
-    const beatSec = 60 / bpm;
-    const interval = beatSec * DIFFICULTIES[difficulty].beatMul;
+    const cfg = DIFFICULTIES[difficulty];
+    const step = (60 / bpm) * cfg.beatMul;
+    const endAt = duration - 1.5;
     notes = [];
+
+    let pattern = PATTERNS[Math.floor(Math.random() * PATTERNS.length)];
+    let pos = 0;
+    let replaysLeft = 1; // play each pattern twice before switching
     let t = leadIn;
-    while(t < duration - 1.5){
-      notes.push({ time:t, dir: DIRS[Math.floor(Math.random()*4)], judged:false });
-      t += interval;
+
+    while(t < endAt){
+      if(pos >= pattern.length){
+        if(replaysLeft > 0){
+          replaysLeft--;
+        } else {
+          pattern = PATTERNS[Math.floor(Math.random() * PATTERNS.length)];
+          replaysLeft = 1;
+        }
+        pos = 0;
+      }
+      const dir = pattern[pos];
+      pos++;
+      // an occasional rest keeps the chart from reading as a flat metronome —
+      // never in the opening bar, so the player gets a clear entry point
+      if(t > leadIn + step * 4 && Math.random() < cfg.restChance){
+        t += step;
+        continue;
+      }
+      notes.push({ time:t, dir:dir, judged:false });
+      t += step;
     }
   }
 
@@ -180,6 +276,11 @@
     while(spawnIdx < notes.length && notes[spawnIdx].time - now <= FALL_DURATION){
       spawnNote(notes[spawnIdx]);
       spawnIdx++;
+    }
+
+    if(fever){
+      if(now >= feverEndsAt) endFever();
+      else updateHeat(); // drain the gauge smoothly while fever runs
     }
 
     // auto-miss any note that passed the judge line unjudged
@@ -269,18 +370,20 @@
     if(!best){ return; } // tap outside any window: ignored, not penalized
     best.judged = true;
     removeNoteEl(best);
-    if(bestDelta <= cfg.perfect) registerHit('perfect', 100);
-    else registerHit('good', 50);
+    if(bestDelta <= cfg.perfect) registerHit('perfect', dir, 100);
+    else registerHit('good', dir, 50);
   }
 
-  function registerHit(kind, pts){
+  function registerHit(kind, dir, pts){
     const cfg = DIFFICULTIES[difficulty];
     combo++; maxCombo = Math.max(maxCombo, combo);
-    const mult = limitBreak ? 1.5 : 1;
-    score += Math.round((pts + Math.floor(combo/5) * 5) * mult);
+    score += Math.round((pts + Math.floor(combo/5) * 5) * (fever ? FEVER_MULT : 1));
     counts[kind]++;
-    heat = Math.min(100, heat + cfg.hitBonus[kind]);
+    // heat only builds outside fever — during fever the gauge shows time remaining
+    if(!fever) heat = Math.min(100, heat + cfg.hitBonus[kind]);
     reactMood = kind; reactUntil = performance.now() + 260;
+    playHitSound(kind);
+    flashLane(dir, kind);
     flashJudge(kind === 'perfect' ? 'PERFECT' : 'GOOD', kind);
     updateHud();
     checkLimitBreak();
@@ -290,20 +393,34 @@
   function registerMiss(){
     combo = 0;
     counts.miss++;
-    heat = Math.max(0, heat - DIFFICULTIES[difficulty].missPenalty);
+    // a miss never cuts fever short — it's the payoff for having filled the gauge
+    if(!fever) heat = Math.max(0, heat - DIFFICULTIES[difficulty].missPenalty);
     reactMood = 'miss'; reactUntil = performance.now() + 260;
-    limitBreak = false;
+    playHitSound('miss');
     flashJudge('MISS', 'miss');
     updateHud();
   }
 
   function checkLimitBreak(){
-    if(heat >= 100 && !limitBreak){
-      limitBreak = true;
-      climaxFlash.classList.remove('show'); void climaxFlash.offsetWidth; climaxFlash.classList.add('show');
-      climaxBanner.classList.remove('show'); void climaxBanner.offsetWidth; climaxBanner.classList.add('show');
-      showCutin();
-    }
+    if(heat >= 100 && !fever) startFever();
+  }
+
+  function startFever(){
+    fever = true;
+    feverEndsAt = audioEl.currentTime + FEVER_DURATION;
+    screens.play.classList.add('fever');
+    byId('heatLabel').textContent = 'FEVER';
+    climaxFlash.classList.remove('show'); void climaxFlash.offsetWidth; climaxFlash.classList.add('show');
+    climaxBanner.classList.remove('show'); void climaxBanner.offsetWidth; climaxBanner.classList.add('show');
+    showCutin();
+  }
+
+  function endFever(){
+    fever = false;
+    heat = HEAT_AFTER_FEVER;
+    screens.play.classList.remove('fever');
+    byId('heatLabel').textContent = '熱量';
+    updateHeat();
   }
 
   function checkComboMilestones(){
@@ -330,6 +447,13 @@
   }
 
   function updateHeat(){
+    if(fever){
+      // during fever the gauge doubles as a countdown of the time left
+      const remain = Math.max(0, feverEndsAt - (audioEl ? audioEl.currentTime : 0));
+      heatFill.style.height = (remain / FEVER_DURATION * 100) + '%';
+      heatWrap.classList.add('burning', 'maxed');
+      return;
+    }
     heatFill.style.height = heat + '%';
     heatWrap.classList.toggle('burning', heat >= 80);
     heatWrap.classList.toggle('maxed', heat >= 100);
