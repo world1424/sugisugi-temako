@@ -217,6 +217,15 @@
     setTimeout(function(){ el.remove(); }, 200);
   }
 
+  const RANK_MASCOT = {
+    'S': 'assets/mascot/idol/cutin_1.png',
+    'A': 'assets/mascot/idol/idle_idol_a.png',
+    'B': 'assets/mascot/happy.png',
+    'C': 'assets/mascot/idle_a.png',
+    'D': 'assets/mascot/cry.png',
+    '-': 'assets/mascot/idle_a.png'
+  };
+
   function endGame(){
     if(rafId) cancelAnimationFrame(rafId);
     byId('rScore').textContent = score;
@@ -224,7 +233,9 @@
     byId('rPerfect').textContent = counts.perfect;
     byId('rGood').textContent = counts.good;
     byId('rMiss').textContent = counts.miss;
-    byId('rankLabel').textContent = calcRank();
+    const rank = calcRank();
+    byId('rankLabel').textContent = rank;
+    byId('resultMascot').src = RANK_MASCOT[rank];
     showScreen('result');
   }
 
@@ -336,13 +347,13 @@
   // and is never interrupted by reactions — the two are fully independent.
   const MASCOT_SPRITES = {
     casual: {
-      idle: ['assets/mascot/idle_a.png', 'assets/mascot/idle_b.png', 'assets/mascot/idle_c.png', 'assets/mascot/idle_d.png'],
+      idle: ['assets/mascot/idle_a.png', 'assets/mascot/idle_b.png', 'assets/mascot/idle_c.png', 'assets/mascot/idle_d.png', 'assets/mascot/idle_e.png', 'assets/mascot/idle_f.png'],
       happy: 'assets/mascot/happy.png',
       sad: 'assets/mascot/cry.png',
       heart: 'assets/mascot/heart.png'
     },
     idol: {
-      idle: ['assets/mascot/idol/idle_idol_a.png', 'assets/mascot/idol/idle_idol_b.png', 'assets/mascot/idol/idle_idol_c.png', 'assets/mascot/idol/idle_idol_d.png'],
+      idle: ['assets/mascot/idol/idle_idol_a.png', 'assets/mascot/idol/idle_idol_b.png', 'assets/mascot/idol/idle_idol_c.png', 'assets/mascot/idol/idle_idol_d.png', 'assets/mascot/idol/idle_idol_e.png', 'assets/mascot/idol/idle_idol_f.png'],
       happy: 'assets/mascot/idol/happy_idol.png',
       sad: 'assets/mascot/idol/sad_idol.png',
       heart: 'assets/mascot/idol/grin_idol.png'
