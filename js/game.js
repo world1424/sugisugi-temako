@@ -59,15 +59,24 @@
   let leadIn = 1.4;       // seconds before first note
   let reactMood = null;   // transient mascot reaction: 'perfect' | 'good' | 'miss'
   let reactUntil = 0;
-  let costume = 'casual'; // 'casual' | 'idol' — unlocked by combo, stays for the rest of the song
-  let cutinShown = false; // one cut-in per song from the combo milestone (limit break can also trigger it)
+  // 'casual' -> 'idol' -> 'milk': each stage is unlocked by combo and never downgrades
+  // within a song, so a costume once earned is kept even after a miss.
+  let costume = 'casual';
+  let cutinShown = false; // one cut-in per song from the combo milestone (fever can also trigger it)
 
   const COSTUME_COMBO = 15; // combo needed to unlock the idol costume
-  const CUTIN_COMBO = 30;   // combo needed to trigger the idol cut-in flourish
+  const MILK_COMBO = 30;    // combo needed to unlock the M!LK costume (also fires the cut-in)
+  const CUTIN_COMBO = 30;   // combo needed to trigger the cut-in flourish
   const FEVER_DURATION = 9; // seconds a FEVER TIME lasts once the heat gauge maxes out
   const FEVER_MULT = 2;     // score multiplier during fever
   const HEAT_AFTER_FEVER = 20; // heat left over when fever ends, so it can be built again
-  const CUTIN_IMAGES = ['assets/mascot/idol/cutin_1.png', 'assets/mascot/idol/cutin_2.png', 'assets/mascot/idol/cutin_3.png'];
+  const CUTIN_IMAGES = [
+    'assets/mascot/idol/cutin_1.png',
+    'assets/mascot/idol/cutin_2.png',
+    'assets/mascot/idol/cutin_3.png',
+    'assets/mascot/milk/visu.png',      // ビジュいいじゃん
+    'assets/mascot/milk/kime_cheer.png'
+  ];
 
   const DIRS = ['up','down','left','right'];
   const GLYPH = { up:'⬆', down:'⬇', left:'⬅', right:'➡' };
@@ -319,10 +328,10 @@
   }
 
   const RANK_MASCOT = {
-    'S': 'assets/mascot/idol/cutin_1.png',
-    'A': 'assets/mascot/idol/idle_idol_a.png',
-    'B': 'assets/mascot/happy.png',
-    'C': 'assets/mascot/idle_a.png',
+    'S': 'assets/mascot/milk/suki_metsu.png',   // 好きすぎて滅
+    'A': 'assets/mascot/milk/kime_heart.png',   // ハートハンドの決めポーズ
+    'B': 'assets/mascot/idol/idle_idol_a.png',
+    'C': 'assets/mascot/happy.png',
     'D': 'assets/mascot/cry.png',
     '-': 'assets/mascot/idle_a.png'
   };
@@ -424,9 +433,11 @@
   }
 
   function checkComboMilestones(){
-    if(costume === 'casual' && combo >= COSTUME_COMBO){
-      costume = 'idol'; // setBodySprite/setReactSprite tags include costume, so this alone refreshes both sprites
-    }
+    // setBodySprite/setReactSprite tag their cache by costume, so changing this
+    // variable alone is enough to refresh both the dance and the reaction sprite
+    if(combo >= MILK_COMBO) costume = 'milk';
+    else if(combo >= COSTUME_COMBO && costume === 'casual') costume = 'idol';
+
     if(!cutinShown && combo >= CUTIN_COMBO){
       cutinShown = true;
       showCutin();
@@ -471,7 +482,7 @@
   // and is never interrupted by reactions — the two are fully independent.
   const MASCOT_SPRITES = {
     casual: {
-      idle: ['assets/mascot/idle_a.png', 'assets/mascot/idle_b.png', 'assets/mascot/idle_c.png', 'assets/mascot/idle_d.png', 'assets/mascot/idle_e.png', 'assets/mascot/idle_f.png'],
+      idle: ['assets/mascot/idle_a.png', 'assets/mascot/idle_b.png', 'assets/mascot/idle_c.png', 'assets/mascot/idle_d.png', 'assets/mascot/idle_e.png'],
       happy: 'assets/mascot/happy.png',
       sad: 'assets/mascot/cry.png',
       heart: 'assets/mascot/heart.png'
@@ -481,6 +492,12 @@
       happy: 'assets/mascot/idol/happy_idol.png',
       sad: 'assets/mascot/idol/sad_idol.png',
       heart: 'assets/mascot/idol/grin_idol.png'
+    },
+    milk: {
+      idle: ['assets/mascot/milk/idle_milk_a.png', 'assets/mascot/milk/idle_milk_b.png', 'assets/mascot/milk/idle_milk_c.png', 'assets/mascot/milk/idle_milk_d.png', 'assets/mascot/milk/idle_milk_e.png', 'assets/mascot/milk/idle_milk_f.png'],
+      happy: 'assets/mascot/milk/happy_milk.png',
+      sad: 'assets/mascot/milk/sad_milk.png',
+      heart: 'assets/mascot/milk/heart_milk.png' // 好き…♡
     }
   };
   let bodySrc = null;
