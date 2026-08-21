@@ -336,7 +336,7 @@
       idleA: 'assets/mascot/idle_a.png',
       idleB: 'assets/mascot/idle_b.png',
       happy: 'assets/mascot/happy.png',
-      sad: 'assets/mascot/sad.png',
+      sad: 'assets/mascot/cry.png',
       heart: 'assets/mascot/heart.png'
     },
     idol: {
