@@ -64,8 +64,8 @@
   let costume = 'casual';
   let cutinShown = false; // one cut-in per song from the combo milestone (fever can also trigger it)
 
-  const COSTUME_COMBO = 15; // combo needed to unlock the idol costume
-  const MILK_COMBO = 30;    // combo needed to unlock the M!LK costume (also fires the cut-in)
+  const COSTUME_COMBO = 10; // combo needed to unlock the idol costume
+  const MILK_COMBO = 20;    // combo needed to unlock the M!LK costume
   const CUTIN_COMBO = 30;   // combo needed to trigger the cut-in flourish
   const FEVER_DURATION = 9; // seconds a FEVER TIME lasts once the heat gauge maxes out
   const FEVER_MULT = 2;     // score multiplier during fever

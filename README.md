@@ -58,8 +58,8 @@ Game/
 - **マスコット表示**: 左に判定リアクション枠、右に全身ダンスキャラ枠を常時表示。右のダンスは判定に関係なく曲のBPMに合わせて6ポーズを巡回し続け、左には PERFECT / GOOD / MISS のたびに表情がポップして消える（`assets/mascot/`）
 - **コスチュームチェンジ（3段階）**: コンボが伸びるほど衣装がグレードアップする。一度手に入れた衣装は
   ミスしても曲の終わりまで戻らない
-  - 私服（`assets/mascot/`）→ コンボ15で **アイドル衣装**（`assets/mascot/idol/`）
-    → コンボ30で **M!LK衣装**（`assets/mascot/milk/`）
+  - 私服（`assets/mascot/`）→ コンボ10で **アイドル衣装**（`assets/mascot/idol/`）
+    → コンボ20で **M!LK衣装**（`assets/mascot/milk/`）
   - 衣装ごとにダンス6ポーズと PERFECT / GOOD / MISS の表情が用意されている
     （M!LK衣装の PERFECT は「好き…♡」表情）
 - **カットイン演出**: 1コンボ30到達、または FEVER TIME 突入時に、演出イラスト5種
