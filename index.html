@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
 <div id="app">
@@ -123,6 +123,8 @@
     <div class="eyebrow">観戦中</div>
     <div class="specCode">部屋 <b id="specCodeVal">----</b></div>
     <div class="specBoard" id="specBoard"></div>
+    <button class="ghost" id="specAudioBtn">🔊 曲を聴く</button>
+    <div class="netNote" id="specAudioMsg"></div>
     <button class="ghost" id="specLeaveBtn">観戦をやめる</button>
   </section>
 
@@ -196,6 +198,7 @@
       <div class="stat-row"><span>PERFECT</span><span id="rPerfect">0</span></div>
       <div class="stat-row"><span>GOOD</span><span id="rGood">0</span></div>
       <div class="stat-row"><span>MISS</span><span id="rMiss">0</span></div>
+      <div id="vsResult" class="hidden"></div>
       <button class="primary hidden" id="backToRoomBtn">部屋にもどる</button>
       <button class="primary" id="retryBtn">もう一度あそぶ</button>
       <button class="ghost" id="changeBtn">曲を変える</button>
@@ -203,7 +206,7 @@
   </section>
 
 </div>
-<script src="js/game.js?v=5"></script>
-<script type="module" src="js/versus.js?v=5"></script>
+<script src="js/game.js?v=6"></script>
+<script type="module" src="js/versus.js?v=6"></script>
 </body>
 </html>

@@ -539,3 +539,33 @@ button.ghost{
 .specJudge.perfect{ color: var(--gold); }
 .specJudge.good{ color: var(--cyan); }
 .specJudge.miss{ color: var(--pink); }
+
+/* 対戦のリザルト（全員の成績） */
+#vsResult{
+  text-align:left; margin-top:14px; padding-top:14px;
+  border-top:1px solid #3B2864;
+}
+#vsResult.hidden{ display:none; }
+.vsWin, .vsLose{
+  text-align:center; font-weight:900; font-family:'Zen Maru Gothic',sans-serif;
+  margin-bottom:8px;
+}
+.vsWin{ font-size:26px; color: var(--gold); }
+.vsLose{ font-size:20px; color: var(--text-dim); }
+.vsTitle{ font-size:10px; letter-spacing:.2em; color: var(--text-dim); margin-bottom:8px; }
+.vsRow{
+  display:flex; align-items:center; gap:8px; font-size:13px; padding-top:8px;
+}
+.vsRow.me .vsName{ color: var(--cyan); font-weight:700; }
+.vsPos{
+  width:20px; text-align:center; font-weight:900; color: var(--gold);
+  font-family:'Zen Maru Gothic',sans-serif;
+}
+.vsName{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vsRank{ font-weight:900; color: var(--pink); min-width:14px; text-align:center; }
+.vsScore{ font-weight:900; font-family:'Zen Maru Gothic',sans-serif; }
+.vsSub{
+  font-size:10px; color: var(--text-dim); padding:2px 0 6px 28px;
+  border-bottom:1px solid rgba(59,40,100,.5);
+}
+#specAudioBtn:disabled{ opacity:.5; cursor:not-allowed; }

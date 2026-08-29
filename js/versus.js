@@ -137,6 +137,9 @@ const CHUNK_LEN = 160 * 1024;            // base64文字列を刻む長さ
 let songUploading = false;
 let downloadedFor = null;                // 受信済みの音源キー（重複ダウンロード防止）
 let songReceived = false;                // ホストの曲を受け取ったか（ゲスト用）
+let audioMeta = null;                    // 部屋に置かれている曲の情報
+let specAudio = null;                    // 観戦者が聴くための音声
+let specWantsAudio = false;              // 観戦者が「曲を聴く」を選んだか
 
 function fileToDataUrl(file){
   return new Promise(function(resolve, reject){
@@ -205,6 +208,63 @@ async function downloadSong(meta){
     downloadedFor = null;
     msg('songWarn','曲を受信できませんでした：'+e.message,'err');
   }
+}
+
+// ---------- 観戦者が曲を聴く ----------
+// 観戦者ぶんの音源ダウンロードは人数分の通信量になるため、自動では取らず
+// 「曲を聴く」を押した人にだけ配る。押す操作はiOSの再生許可も兼ねる。
+function updateSpecAudioBtn(){
+  const btn = $('specAudioBtn');
+  if(!isSpectator){ btn.classList.add('hidden'); return; }
+  btn.classList.remove('hidden');
+  if(specWantsAudio){
+    btn.textContent = '🔇 曲を止める';
+  } else {
+    btn.textContent = audioMeta ? '🔊 曲を聴く' : '🔊 曲を聴く（曲の配信待ち）';
+  }
+  btn.disabled = !audioMeta && !specWantsAudio;
+}
+
+$('specAudioBtn').addEventListener('click', async function(){
+  if(specWantsAudio){ stopSpecAudio(); return; }
+  if(!audioMeta) return;
+  specWantsAudio = true;
+  updateSpecAudioBtn();
+  try{
+    if(!specAudio){
+      msg('specAudioMsg','曲を受信しています…','warn');
+      const snap = await get(ref(db,'rooms/'+roomCode+'/audio/data'));
+      const parts = snap.val();
+      if(!parts) throw new Error('データがありません');
+      let dataUrl = '';
+      for(let i=0;i<audioMeta.chunks;i++) dataUrl += (parts[String(i)] || '');
+      const blob = await (await fetch(dataUrl)).blob();
+      specAudio = new Audio(URL.createObjectURL(blob));
+    }
+    await playSpecAudio();
+    msg('specAudioMsg','「'+esc(audioMeta.name)+'」を再生中','ok');
+  }catch(e){
+    specWantsAudio = false;
+    updateSpecAudioBtn();
+    msg('specAudioMsg','曲を再生できませんでした：'+e.message,'err');
+  }
+});
+
+// 途中から観戦しても、対戦の進行に合わせた位置から鳴らす
+async function playSpecAudio(){
+  if(!specAudio || !specWantsAudio) return;
+  let offset = 0;
+  if(lastMeta && lastMeta.startAt) offset = (serverNow() - lastMeta.startAt) / 1000;
+  if(offset < 0) offset = 0;                       // まだ始まっていない
+  await specAudio.play();
+  if(offset > 0){ try { specAudio.currentTime = offset; } catch(_){} }
+}
+
+function stopSpecAudio(){
+  specWantsAudio = false;
+  if(specAudio){ specAudio.pause(); }
+  updateSpecAudioBtn();
+  msg('specAudioMsg','');
 }
 
 function nickname(){
@@ -293,6 +353,10 @@ async function enterRoom(code){
   }
   songReceived = false;
   downloadedFor = null;
+  specWantsAudio = false; audioMeta = null;
+  if(specAudio){ specAudio.pause(); specAudio = null; }
+  msg('specAudioMsg','');
+  updateSpecAudioBtn();
   msg('roomMsg', isSpectator ? '観戦モードです。対戦の開始を待っています…' : '');
 
   subscribeRoom();
@@ -332,10 +396,14 @@ function subscribeRoom(){
     if(lastMeta) onRoomUpdate();
   }, onErr);
 
-  // 音源は「どんな曲が置かれたか」だけを監視し、本体は変わったときに一度だけ取る
+  // 音源は「どんな曲が置かれたか」だけを監視し、本体は変わったときに一度だけ取る。
+  // 観戦者は自動では取らない（人数分の通信量になるため）。「曲を聴く」を
+  // 押したときだけ取りに行く。
   const unsubAudio = onValue(ref(db, base+'/audio/meta'), function(snap){
     const m = snap.val();
-    if(!m || isHost || isSpectator) return;
+    audioMeta = m || null;
+    if(isSpectator){ updateSpecAudioBtn(); return; }
+    if(!m || isHost) return;
     downloadSong(m);
   }, onErr);
 
@@ -351,6 +419,7 @@ function onRoomUpdate(){
   renderPlayers();
   renderSpectatorBoard();
   renderRivals(); // 相手の状況は「相手が動いたとき」に描き直す必要がある
+  renderVsResult(); // 後から終わった人がいれば順位を更新する
 
   if(!isHost){
     hostBpm = meta.bpm; hostDifficulty = meta.difficulty;
@@ -472,6 +541,13 @@ function beginCountdown(meta){
     clearInterval(countdownTimer);
     if(isSpectator){
       show('spectate');
+      // 「曲を聴く」を選んでいる観戦者は、対戦の開始に合わせて頭から鳴らす
+      if(specWantsAudio && specAudio){
+        specAudio.currentTime = 0;
+        specAudio.play().catch(function(){
+          msg('specAudioMsg','もう一度「曲を聴く」を押してください','warn');
+        });
+      }
     } else {
       $('rivalPanel').classList.remove('hidden');
       Game().startVersus({
@@ -498,12 +574,48 @@ window.addEventListener('load', function(){
     publishSelf({ score: r.score, maxCombo: r.maxCombo, rank: r.rank, finished: true });
     // 対戦中はソロ用のボタンを隠し、部屋に戻る導線だけ出す
     if(roomCode){
+      showingResult = true;
       $('backToRoomBtn').classList.remove('hidden');
       $('retryBtn').classList.add('hidden');
       $('changeBtn').classList.add('hidden');
+      renderVsResult();
     }
   };
 });
+
+// ---------- 対戦結果（全員分） ----------
+let showingResult = false;
+
+function renderVsResult(){
+  const box = $('vsResult');
+  if(!showingResult || !roomCode){ box.classList.add('hidden'); return; }
+  const entries = Object.entries(lastPlayers)
+    .sort((a,b) => (b[1].score||0) - (a[1].score||0));
+  if(!entries.length){ box.classList.add('hidden'); return; }
+
+  const myPos = entries.findIndex(([id]) => id === uid);
+  const waiting = entries.filter(([,p]) => !p.finished).length;
+
+  let head = '';
+  if(myPos === 0 && entries.length > 1) head = '<div class="vsWin">勝ち！</div>';
+  else if(myPos > 0)                    head = '<div class="vsLose">' + (myPos+1) + '位</div>';
+
+  box.classList.remove('hidden');
+  box.innerHTML = head
+    + '<div class="vsTitle">対戦結果</div>'
+    + entries.map(function([id,p], i){
+        const me = id === uid;
+        return '<div class="vsRow' + (me ? ' me' : '') + '">'
+          + '<span class="vsPos">' + (i+1) + '</span>'
+          + '<span class="vsName">' + esc(p.name) + (me ? '<span class="youTag">あなた</span>' : '') + '</span>'
+          + '<span class="vsRank">' + esc(p.rank && p.rank !== '-' ? p.rank : '') + '</span>'
+          + '<span class="vsScore">' + (p.score||0) + '</span>'
+          + '</div>'
+          + '<div class="vsSub">最大コンボ ' + (p.maxCombo||0)
+          + (p.finished ? '' : '　<span class="waitTag">プレイ中…</span>') + '</div>';
+      }).join('')
+    + (waiting ? '<div class="netNote">まだ ' + waiting + ' 人がプレイ中です。終わると順位が変わることがあります</div>' : '');
+}
 
 // ---------- 対戦後に部屋へ戻る ----------
 $('backToRoomBtn').addEventListener('click', async function(){
@@ -528,6 +640,8 @@ $('backToRoomBtn').addEventListener('click', async function(){
 });
 
 function restoreResultButtons(){
+  showingResult = false;
+  $('vsResult').classList.add('hidden');
   $('backToRoomBtn').classList.add('hidden');
   $('retryBtn').classList.remove('hidden');
   $('changeBtn').classList.remove('hidden');
@@ -633,6 +747,9 @@ async function leaveRoom(note){
   $('rivalPanel').classList.add('hidden');
   unsubscribeRoom();
   restoreResultButtons();
+  if(specAudio){ specAudio.pause(); specAudio = null; }
+  specWantsAudio = false; audioMeta = null;
+  msg('specAudioMsg','');
   const code = roomCode, wasHost = isHost, wasSpec = isSpectator;
   roomCode = null; isHost = false; isSpectator = false;
   songReceived = false; downloadedFor = null; songUploading = false;
