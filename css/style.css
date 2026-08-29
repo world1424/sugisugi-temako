@@ -334,3 +334,106 @@ button.ghost{
   -webkit-background-clip:text; background-clip:text; color:transparent;
   margin:10px 0;
 }
+
+/* ---------- ONLINE: lobby / spectate / countdown ---------- */
+.lobbyHead{
+  font-size: clamp(22px, 6vw, 30px); font-weight:900; margin:0 0 18px;
+  background: linear-gradient(90deg, var(--cyan), var(--pink));
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+#lobby .card, #spectate .specBoard{ max-width:360px; }
+.txt{
+  width:100%; margin-top:6px; padding:11px 12px; font-size:15px;
+  background: var(--surface2); color: var(--text);
+  border:1px solid #4E3585; border-radius:10px;
+  font-family:'Noto Sans JP',sans-serif;
+}
+.txt::placeholder{ color:#7A6D96; }
+.txt.code{
+  text-align:center; letter-spacing:.4em; font-weight:900; font-size:22px;
+  font-family:'Zen Maru Gothic',sans-serif;
+}
+.netNote{ font-size:11px; color: var(--text-dim); margin-top:10px; line-height:1.6; }
+.netNote.err{ color: var(--pink); }
+.netNote.warn{ color: var(--gold); }
+.netNote.ok{ color: var(--cyan); }
+
+.roomCodeBox{
+  background: var(--surface2); border:1px solid #4E3585; border-radius:14px;
+  padding:14px; text-align:center; margin-bottom:16px;
+}
+.roomCodeLabel{ font-size:10px; letter-spacing:.2em; color: var(--text-dim); }
+.roomCodeVal{
+  font-size:38px; font-weight:900; letter-spacing:.18em; margin:2px 0;
+  font-family:'Zen Maru Gothic',sans-serif; color: var(--gold);
+}
+.roomCodeHint{ font-size:10px; color: var(--text-dim); }
+
+.playerList{ margin-top:14px; }
+.playerRow{
+  display:flex; justify-content:space-between; align-items:center; gap:8px;
+  padding:9px 4px; border-bottom:1px solid #3B2864; font-size:13px;
+}
+.pname{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.youTag, .hostTag, .okTag, .waitTag, .costumeTag, .feverTag, .doneTag{
+  font-size:10px; padding:2px 6px; border-radius:6px; margin-left:5px; white-space:nowrap;
+}
+.youTag{ background:#3B2864; color: var(--text-dim); }
+.hostTag{ background: var(--surface2); color: var(--cyan); }
+.okTag{ background: rgba(47,230,216,.15); color: var(--cyan); font-weight:700; }
+.waitTag{ background: transparent; color:#7A6D96; }
+.costumeTag{ background:#3B2864; color: var(--text-dim); }
+.feverTag{ background: var(--gold); color:#1B0E2E; font-weight:900; }
+.doneTag{ background: rgba(255,62,127,.18); color: var(--pink); font-weight:700; }
+
+/* 対戦中の相手パネル */
+#rivalPanel{
+  position:absolute; left:14px; top:88px; display:flex; flex-direction:column; gap:6px;
+  pointer-events:none; z-index:4;
+}
+.rival{
+  background: rgba(33,21,57,.82); border:1px solid #3B2864; border-radius:10px;
+  padding:6px 9px; min-width:104px;
+}
+.rival.fever{ border-color: var(--gold); box-shadow:0 0 10px rgba(255,210,63,.5); }
+.rname{ font-size:10px; color: var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rscore{ font-size:17px; font-weight:900; font-family:'Zen Maru Gothic',sans-serif; }
+.rmeta{ font-size:9px; color: var(--text-dim); }
+
+/* 観戦ボード */
+.specCode{ font-size:12px; color: var(--text-dim); margin-bottom:14px; }
+.specCode b{ color: var(--gold); letter-spacing:.2em; font-size:16px; }
+.specBoard{ width:100%; }
+.specRow{
+  display:flex; gap:10px; align-items:center;
+  background: var(--surface); border:1px solid #3B2864; border-radius:14px;
+  padding:12px; margin-bottom:9px; text-align:left;
+}
+.specRow.fever{ border-color: var(--gold); box-shadow:0 0 14px rgba(255,210,63,.35); }
+.specRank{
+  font-size:20px; font-weight:900; color: var(--gold); min-width:22px; text-align:center;
+  font-family:'Zen Maru Gothic',sans-serif;
+}
+.specMain{ flex:1; min-width:0; }
+.specName{ font-size:12px; color: var(--text); display:flex; align-items:center; flex-wrap:wrap; gap:2px; }
+.specScore{ font-size:24px; font-weight:900; font-family:'Zen Maru Gothic',sans-serif; line-height:1.2; }
+.specSub{ font-size:10px; color: var(--text-dim); }
+.specHeat{ height:5px; background:#3B2864; border-radius:3px; overflow:hidden; margin-top:5px; }
+.specHeat i{ display:block; height:100%; background: linear-gradient(90deg, var(--pink), var(--gold)); }
+
+/* カウントダウン */
+#countdown{
+  position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
+  background: rgba(21,12,41,.82); pointer-events:none;
+}
+#countdown span{
+  font-size:110px; font-weight:900; font-family:'Zen Maru Gothic',sans-serif;
+  background: linear-gradient(90deg, var(--pink), var(--gold));
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+#countdown span.pop{ animation: cdPop .5s ease-out; }
+@keyframes cdPop{
+  0%{ transform:scale(.5); opacity:0; }
+  40%{ transform:scale(1.1); opacity:1; }
+  100%{ transform:scale(1); opacity:1; }
+}

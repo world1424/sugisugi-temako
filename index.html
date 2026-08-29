@@ -45,8 +45,88 @@
       </div>
 
       <button class="primary" id="startBtn" disabled>スタート</button>
+      <button class="ghost" id="toVersusBtn">オンライン対戦・観戦</button>
     </div>
   </section>
+
+  <!-- LOBBY -->
+  <section id="lobby" class="screen hidden">
+    <div class="eyebrow">ONLINE</div>
+    <h1 class="lobbyHead">オンライン対戦</h1>
+
+    <!-- 入口 -->
+    <div class="card" id="lobbyEntry">
+      <div class="field">
+        <label>ニックネーム</label>
+        <input type="text" id="nickInput" class="txt" maxlength="12" placeholder="てまこ推し">
+      </div>
+      <button class="primary" id="createRoomBtn">部屋を作る</button>
+
+      <div class="field">
+        <label>部屋コードで参加</label>
+        <input type="text" id="joinCodeInput" class="txt code" maxlength="4" placeholder="ABCD" autocapitalize="characters">
+      </div>
+      <button class="primary" id="joinRoomBtn">プレイヤーで参加</button>
+      <button class="ghost" id="spectateBtn">観戦で入る</button>
+      <button class="ghost" id="lobbyBackBtn">もどる</button>
+      <div class="netNote" id="lobbyMsg"></div>
+    </div>
+
+    <!-- 待機部屋 -->
+    <div class="card hidden" id="lobbyRoom">
+      <div class="roomCodeBox">
+        <div class="roomCodeLabel">部屋コード</div>
+        <div class="roomCodeVal" id="roomCodeVal">----</div>
+        <div class="roomCodeHint">このコードを友達に伝えてください</div>
+      </div>
+
+      <div id="lobbySongArea">
+        <label class="upload-zone" id="vsUploadZone" for="audioInput">
+          <svg class="upload-icon" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+          </svg>
+          <div class="label" id="vsUploadLabel">自分の曲を選ぶ</div>
+          <div class="filetypes">全員が同じ曲を用意してください</div>
+          <div class="fname" id="vsFileName"></div>
+        </label>
+        <div class="netNote" id="songWarn"></div>
+      </div>
+
+      <div id="hostSettings" class="hidden">
+        <div class="field">
+          <label>BPM（テンポ）<span class="val" id="vsBpmVal">128</span></label>
+          <input type="range" id="vsBpmSlider" min="70" max="190" value="128">
+        </div>
+        <div class="field">
+          <label>難易度</label>
+          <div class="diff-group" id="vsDiffGroup">
+            <button type="button" class="diff-btn" data-diff="easy">EASY</button>
+            <button type="button" class="diff-btn active" data-diff="normal">NORMAL</button>
+            <button type="button" class="diff-btn" data-diff="hard">HARD</button>
+          </div>
+        </div>
+      </div>
+      <div id="guestSettings" class="netNote hidden"></div>
+
+      <div class="playerList" id="playerList"></div>
+
+      <button class="primary" id="readyBtn">準備完了</button>
+      <button class="primary hidden" id="hostStartBtn">対戦スタート</button>
+      <button class="ghost" id="leaveRoomBtn">退出する</button>
+      <div class="netNote" id="roomMsg"></div>
+    </div>
+  </section>
+
+  <!-- SPECTATE -->
+  <section id="spectate" class="screen hidden">
+    <div class="eyebrow">観戦中</div>
+    <div class="specCode">部屋 <b id="specCodeVal">----</b></div>
+    <div class="specBoard" id="specBoard"></div>
+    <button class="ghost" id="specLeaveBtn">観戦をやめる</button>
+  </section>
+
+  <!-- COUNTDOWN -->
+  <div id="countdown" class="hidden"><span id="countdownNum">3</span></div>
 
   <!-- PLAY -->
   <section id="play" class="screen hidden">
@@ -63,6 +143,7 @@
 
     <div id="heatWrap"><div id="heatFill"></div></div>
     <div id="heatLabel">熱量</div>
+    <div id="rivalPanel" class="hidden"></div>
 
     <div class="stage">
       <div id="climaxFlash"></div>
@@ -114,5 +195,6 @@
 
 </div>
 <script src="js/game.js"></script>
+<script type="module" src="js/versus.js"></script>
 </body>
 </html>

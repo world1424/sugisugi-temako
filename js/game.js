@@ -66,6 +66,8 @@
   // within a song, so a costume once earned is kept even after a miss.
   let costume = 'casual';
   let cutinShown = false; // one cut-in per song from the combo milestone (fever can also trigger it)
+  let versusMode = false; // true while playing an online match (see window.Temako)
+  let lastEmit = 0;       // throttle timestamp for versus progress updates
 
   const COSTUME_COMBO = 10; // combo needed to unlock the idol costume
   const MILK_COMBO = 20;    // combo needed to unlock the M!LK costume
@@ -194,15 +196,23 @@
   // ---------- Game flow ----------
   function startGame(){
     ensureAudioCtx(); // must be created from a user gesture, so do it on the start click
-    // Solo play rolls a fresh chart per song. Versus will instead hand down the
-    // room's seed here so every player faces the same chart.
+    // Solo play rolls a fresh chart per song. Versus overrides all of this via
+    // startVersus() so every player faces the same chart.
+    versusMode = false;
     chartSeed = randomSeed();
+    launch(null);
+  }
+
+  // opts (versus only): { seed, bpm, difficulty, duration }
+  // `duration` is the HOST's song length — using it rather than each player's own
+  // file guarantees an identical chart even if the files differ slightly.
+  function launch(opts){
     showScreen('play');
     resetPlayState();
     if(audioEl){ audioEl.pause(); audioEl.currentTime = 0; }
     audioEl = new Audio(audioURL);
     audioEl.addEventListener('loadedmetadata', function(){
-      buildChart(audioEl.duration || 60);
+      buildChart((opts && opts.duration) || audioEl.duration || 60);
       beginPlayback();
     }, { once:true });
     audioEl.addEventListener('ended', endGame);
@@ -371,6 +381,9 @@
     byId('rankLabel').textContent = rank;
     byId('resultMascot').src = RANK_MASCOT[rank];
     showScreen('result');
+    if(versusMode && api.onFinish){
+      api.onFinish({ score:score, maxCombo:maxCombo, rank:rank, counts:counts });
+    }
   }
 
   function calcRank(){
@@ -479,6 +492,21 @@
     comboVal.textContent = combo;
     updateHeat();
     mascot.classList.toggle('hype', combo >= 10);
+    emitProgress();
+  }
+
+  // Push our live state to the room, throttled so a dense HARD chart doesn't
+  // spam the database (a hit can land several times per second).
+  const EMIT_INTERVAL = 200; // ms
+  function emitProgress(){
+    if(!versusMode || !api.onProgress) return;
+    const now = performance.now();
+    if(now - lastEmit < EMIT_INTERVAL) return;
+    lastEmit = now;
+    api.onProgress({
+      score: score, combo: combo, maxCombo: maxCombo,
+      heat: Math.round(heat), costume: costume, fever: fever
+    });
   }
 
   function updateHeat(){
@@ -558,5 +586,52 @@
     const frame = Math.floor(nowSec / beatSec) % idleFrames.length;
     setBodySprite(frame);
   }
+
+  // ---------- Public API for the online-versus module (js/versus.js) ----------
+  // Kept deliberately small: versus drives the match, the game reports back.
+  const api = {
+    onProgress: null, // set by versus; receives {score,combo,maxCombo,heat,costume,fever}
+    onFinish: null,   // set by versus; receives {score,maxCombo,rank,counts}
+
+    hasSong: function(){ return !!audioURL; },
+    getSongInfo: function(){
+      const f = audioInput.files && audioInput.files[0];
+      return f ? { name: f.name } : null;
+    },
+
+    // Read the duration of the locally chosen file without starting a match.
+    probeDuration: function(){
+      return new Promise(function(resolve){
+        if(!audioURL) return resolve(0);
+        const a = new Audio(audioURL);
+        a.addEventListener('loadedmetadata', function(){ resolve(a.duration || 0); }, { once:true });
+        a.addEventListener('error', function(){ resolve(0); }, { once:true });
+        a.load();
+      });
+    },
+
+    // Begin an online match. All params come from the room so every player
+    // generates an identical chart.
+    startVersus: function(opts){
+      ensureAudioCtx();
+      versusMode = true;
+      chartSeed = opts.seed >>> 0;
+      bpm = opts.bpm;
+      difficulty = opts.difficulty;
+      lastEmit = 0;
+      launch(opts);
+    },
+
+    // Leave versus and return to the title screen.
+    exitVersus: function(){
+      versusMode = false;
+      if(rafId) cancelAnimationFrame(rafId);
+      if(audioEl){ audioEl.pause(); }
+      showScreen('start');
+    },
+
+    showScreen: showScreen
+  };
+  window.Temako = api;
 
 })();
