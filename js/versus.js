@@ -102,8 +102,19 @@ $('toVersusBtn').addEventListener('click', function(){
 
 $('lobbyBackBtn').addEventListener('click', function(){ show('start'); });
 
+// スマホのIMEは入力確定の途中で value を書き換えられると文字を二重に確定させる
+// ことがある。以前は毎回 toUpperCase() で必ず書き換えが走っていたため、1文字
+// 打つだけで2文字入ってしまっていた。
+// 大文字化は CSS(text-transform) と読み取り時に任せ、ここでは「使えない文字が
+// 実際に入ったときだけ」書き換える。カーソル位置も保つ。
 $('joinCodeInput').addEventListener('input', function(e){
-  e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const el = e.target;
+  const cleaned = el.value.replace(/[^A-Za-z0-9]/g, '');
+  if(cleaned === el.value) return;           // 通常の入力では何もしない
+  const removed = el.value.length - cleaned.length;
+  const pos = Math.max(0, (el.selectionStart || 0) - removed);
+  el.value = cleaned;
+  try { el.setSelectionRange(pos, pos); } catch(_){ /* 一部端末では未対応 */ }
 });
 
 // 曲を選んだらロビー側の表示も更新する（入力欄はタイトル画面と共用）
@@ -232,7 +243,8 @@ $('spectateBtn').addEventListener('click', function(){ joinRoom(true); });
 async function joinRoom(spectate){
   await ensureAuth();
   if(!uid) return msg('lobbyMsg','接続できていません','err');
-  const code = ($('joinCodeInput').value || '').trim().toUpperCase();
+  // 大文字化と不要文字の除去は、入力中ではなくここで行う
+  const code = ($('joinCodeInput').value || '').replace(/[^A-Za-z0-9]/g,'').toUpperCase();
   if(code.length !== 4) return msg('lobbyMsg','部屋コードは4文字です','err');
 
   let snap;

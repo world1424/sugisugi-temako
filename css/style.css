@@ -365,6 +365,9 @@ button.ghost{
 .txt.code{
   text-align:center; letter-spacing:.4em; font-weight:900; font-size:22px;
   font-family:'Zen Maru Gothic',sans-serif;
+  /* 大文字化は見た目だけで行う。JSでvalueを書き換えるとスマホのIMEが
+     文字を二重に確定させることがあるため */
+  text-transform: uppercase;
 }
 .netNote{ font-size:11px; color: var(--text-dim); margin-top:10px; line-height:1.6; }
 .netNote.err{ color: var(--pink); }
