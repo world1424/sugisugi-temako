@@ -114,9 +114,85 @@ $('audioInput').addEventListener('change', async function(){
   $('vsFileName').textContent = info.name;
   $('vsUploadZone').classList.add('has-file');
   myDuration = await Game().probeDuration();
-  checkSongMatch();
-  if(roomCode && !isSpectator) publishSelf({ });
+  // 部屋主が曲を選んだら、その音源を部屋に配って全員が同じ曲で遊べるようにする
+  if(roomCode && isHost && info.file) uploadSong(info.file);
 });
+
+// ---------- 曲の配布 ----------
+// Realtime Database に分割して置く。Storage を使わないので追加設定が要らず、
+// 部屋を閉じたときに音源ごと消えるため保存容量も溜まらない。
+const MAX_SONG_BYTES = 12 * 1024 * 1024; // 12MB。これ以上は転送が重すぎる
+const CHUNK_LEN = 160 * 1024;            // base64文字列を刻む長さ
+let songUploading = false;
+let downloadedFor = null;                // 受信済みの音源キー（重複ダウンロード防止）
+
+function fileToDataUrl(file){
+  return new Promise(function(resolve, reject){
+    const r = new FileReader();
+    r.onload = function(){ resolve(r.result); };
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+async function uploadSong(file){
+  if(songUploading) return;
+  if(file.size > MAX_SONG_BYTES){
+    msg('songWarn','⚠ ファイルが大きすぎます（'+(file.size/1048576).toFixed(1)
+      +'MB）。12MB以下の曲を選んでください','err');
+    return;
+  }
+  songUploading = true;
+  try{
+    msg('songWarn','曲を配信中… 0%','warn');
+    const dataUrl = await fileToDataUrl(file);
+    const total = Math.ceil(dataUrl.length / CHUNK_LEN);
+    const base = 'rooms/'+roomCode+'/audio';
+
+    await remove(ref(db, base));                       // 前の曲を消してから置き換える
+    for(let i=0; i<total; i++){
+      const patch = {};
+      patch[String(i)] = dataUrl.slice(i*CHUNK_LEN, (i+1)*CHUNK_LEN);
+      await update(ref(db, base+'/data'), patch);
+      msg('songWarn','曲を配信中… '+Math.round((i+1)/total*100)+'%','warn');
+    }
+    await set(ref(db, base+'/meta'), {
+      name: file.name, size: file.size, chunks: total, at: serverNow()
+    });
+    await update(ref(db,'rooms/'+roomCode+'/meta'), {
+      songName: file.name, songDuration: myDuration || 0
+    });
+    msg('songWarn','この曲を全員に配信しました','ok');
+  }catch(e){
+    msg('songWarn','曲の配信に失敗しました：'+e.message,'err');
+  }finally{
+    songUploading = false;
+  }
+}
+
+async function downloadSong(meta){
+  const key = meta.name + ':' + meta.chunks + ':' + meta.at;
+  if(downloadedFor === key) return;          // 同じ曲なら取り直さない
+  downloadedFor = key;
+  try{
+    msg('songWarn','ホストの曲を受信中…','warn');
+    const snap = await get(ref(db, 'rooms/'+roomCode+'/audio/data'));
+    const parts = snap.val();
+    if(!parts) throw new Error('データがありません');
+    let dataUrl = '';
+    for(let i=0; i<meta.chunks; i++) dataUrl += (parts[String(i)] || '');
+    const blob = await (await fetch(dataUrl)).blob();
+    Game().setSongBlob(blob, meta.name);
+    myDuration = await Game().probeDuration();
+    $('vsUploadLabel').textContent = 'ホストの曲を受信しました';
+    $('vsFileName').textContent = meta.name;
+    $('vsUploadZone').classList.add('has-file');
+    msg('songWarn','課題曲「'+esc(meta.name)+'」を受信しました','ok');
+  }catch(e){
+    downloadedFor = null;
+    msg('songWarn','曲を受信できませんでした：'+e.message,'err');
+  }
+}
 
 function nickname(){
   const v = ($('nickInput').value || '').trim().slice(0,12);
@@ -195,7 +271,12 @@ async function enterRoom(code){
   $('guestSettings').classList.toggle('hidden', isHost);
   $('hostStartBtn').classList.toggle('hidden', !isHost);
   $('readyBtn').classList.toggle('hidden', isSpectator);
-  $('lobbySongArea').classList.toggle('hidden', isSpectator);
+  // 曲を選ぶのは部屋主だけ。参加者にはホストの音源が自動で配られる
+  $('lobbySongArea').classList.toggle('hidden', !isHost);
+  if(isHost){
+    $('vsUploadLabel').textContent = '課題曲を選ぶ';
+    $('vsUploadZone').querySelector('.filetypes').textContent = '選んだ曲が参加者全員に配信されます';
+  }
   msg('roomMsg', isSpectator ? '観戦モードです。対戦の開始を待っています…' : '');
 
   subscribeRoom();
@@ -203,24 +284,34 @@ async function enterRoom(code){
 }
 
 // ---------- 部屋の購読 ----------
+// 部屋ごと購読すると、スコアが動くたびに音源データまで再取得してしまう。
+// meta / players / audio.meta の3つに分けて、音源本体は必要なときだけ取りに行く。
 function subscribeRoom(){
   unsubscribeRoom();
-  const r = ref(db, 'rooms/'+roomCode);
+  const base = 'rooms/'+roomCode;
+  const onErr = function(err){ msg('roomMsg','購読エラー：'+err.message,'err'); };
+
   // v9以降の onValue は「解除用の関数」を返す。off() に渡すのは誤りで例外になる
-  const unsub = onValue(r, function(snap){
+  const unsubMeta = onValue(ref(db, base+'/meta'), function(snap){
     const v = snap.val();
-    if(!v || !v.meta){
-      // ホストが部屋を消した等
-      leaveRoom('部屋が閉じられました');
-      return;
-    }
-    lastMeta = v.meta;
-    lastPlayers = v.players || {};
+    if(!v){ leaveRoom('部屋が閉じられました'); return; } // ホストが部屋を消した等
+    lastMeta = v;
     onRoomUpdate();
-  }, function(err){
-    msg('roomMsg','購読エラー：'+err.message,'err');
-  });
-  roomUnsub = unsub;
+  }, onErr);
+
+  const unsubPlayers = onValue(ref(db, base+'/players'), function(snap){
+    lastPlayers = snap.val() || {};
+    if(lastMeta) onRoomUpdate();
+  }, onErr);
+
+  // 音源は「どんな曲が置かれたか」だけを監視し、本体は変わったときに一度だけ取る
+  const unsubAudio = onValue(ref(db, base+'/audio/meta'), function(snap){
+    const m = snap.val();
+    if(!m || isHost || isSpectator) return;
+    downloadSong(m);
+  }, onErr);
+
+  roomUnsub = function(){ unsubMeta(); unsubPlayers(); unsubAudio(); };
 }
 
 function unsubscribeRoom(){
@@ -235,9 +326,9 @@ function onRoomUpdate(){
 
   if(!isHost){
     hostBpm = meta.bpm; hostDifficulty = meta.difficulty;
+    const song = meta.songName ? '　課題曲：' + meta.songName : '　（ホストが曲を選ぶのを待っています）';
     $('guestSettings').textContent =
-      'ホストの設定  BPM ' + meta.bpm + ' / ' + String(meta.difficulty).toUpperCase();
-    checkSongMatch();
+      'ホストの設定  BPM ' + meta.bpm + ' / ' + String(meta.difficulty).toUpperCase() + song;
   }
 
   if(isHost){
@@ -270,22 +361,6 @@ function esc(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-// ---------- 曲の一致チェック ----------
-function checkSongMatch(){
-  if(isSpectator || !lastMeta) return;
-  const hostName = lastMeta.songName, hostDur = lastMeta.songDuration;
-  if(isHost || !hostName || !myDuration){ msg('songWarn',''); return; }
-  const info = Game().getSongInfo();
-  const nameSame = info && info.name === hostName;
-  const durSame  = Math.abs(myDuration - hostDur) < 1.0;
-  if(nameSame && durSame){
-    msg('songWarn','ホストと同じ曲のようです', 'ok');
-  } else {
-    msg('songWarn','⚠ ホストの曲「'+esc(hostName)+'」と違うかもしれません（長さの差 '
-      + Math.abs(myDuration-hostDur).toFixed(1) + '秒）。譜面は全員同じなので遊べますが、曲とズレる場合があります', 'warn');
-  }
-}
-
 // ---------- ホスト設定 ----------
 $('vsBpmSlider').addEventListener('input', function(e){
   hostBpm = parseInt(e.target.value,10);
@@ -302,18 +377,15 @@ $('vsDiffGroup').addEventListener('click', function(e){
 
 // ---------- 準備完了 ----------
 $('readyBtn').addEventListener('click', async function(){
-  if(!Game().hasSong()) return msg('roomMsg','先に曲を選んでください','err');
+  if(songUploading) return msg('roomMsg','曲の配信が終わるまで待ってください','warn');
+  if(!Game().hasSong()){
+    return msg('roomMsg', isHost ? '先に課題曲を選んでください'
+                                 : 'ホストが曲を配信するのを待っています','err');
+  }
   const me = lastPlayers[uid] || {};
   const next = !me.ready;
   await publishSelf({ ready: next });
   $('readyBtn').textContent = next ? '準備完了を取り消す' : '準備完了';
-  // ホストは自分の曲を「基準の曲」として部屋に登録する
-  if(isHost && next){
-    const info = Game().getSongInfo();
-    await update(ref(db,'rooms/'+roomCode+'/meta'), {
-      songName: info ? info.name : '', songDuration: myDuration || 0
-    });
-  }
 });
 
 async function publishSelf(patch){

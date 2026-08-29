@@ -1,0 +1,59 @@
+{
+  "rules": {
+    "rooms": {
+      "$room": {
+        ".read": "auth != null",
+
+        "meta": {
+          ".write": "auth != null && (!data.exists() || data.child('host').val() === auth.uid)",
+          ".validate": "newData.hasChildren(['host','seed','state'])",
+          "host":         { ".validate": "newData.val() === auth.uid" },
+          "seed":         { ".validate": "newData.isNumber()" },
+          "bpm":          { ".validate": "newData.isNumber() && newData.val() >= 70 && newData.val() <= 190" },
+          "difficulty":   { ".validate": "newData.isString() && newData.val().length <= 10" },
+          "songName":     { ".validate": "newData.isString() && newData.val().length <= 120" },
+          "songDuration": { ".validate": "newData.isNumber()" },
+          "state":        { ".validate": "newData.isString() && newData.val().length <= 12" },
+          "startAt":      { ".validate": "newData.isNumber()" },
+          "createdAt":    { ".validate": "newData.isNumber()" },
+          "$other":       { ".validate": false }
+        },
+
+        "players": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            "name":      { ".validate": "newData.isString() && newData.val().length <= 20" },
+            "score":     { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "combo":     { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "maxCombo":  { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "heat":      { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+            "costume":   { ".validate": "newData.isString() && newData.val().length <= 10" },
+            "fever":     { ".validate": "newData.isBoolean()" },
+            "ready":     { ".validate": "newData.isBoolean()" },
+            "finished":  { ".validate": "newData.isBoolean()" },
+            "rank":      { ".validate": "newData.isString() && newData.val().length <= 2" },
+            "$other":    { ".validate": false }
+          }
+        },
+
+        "audio": {
+          ".write": "auth != null && root.child('rooms').child($room).child('meta').child('host').val() === auth.uid",
+          "meta": {
+            ".validate": "newData.hasChildren(['name','chunks'])",
+            "name":   { ".validate": "newData.isString() && newData.val().length <= 120" },
+            "size":   { ".validate": "newData.isNumber() && newData.val() <= 12582912" },
+            "chunks": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 200" },
+            "at":     { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          },
+          "data": {
+            "$i": { ".validate": "newData.isString() && newData.val().length <= 200000" }
+          },
+          "$other": { ".validate": false }
+        },
+
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}

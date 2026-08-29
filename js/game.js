@@ -47,6 +47,7 @@
   // ---------- State ----------
   let audioEl = null;
   let audioURL = null;
+  let receivedSongName = ''; // 対戦でホストから受信した曲名（自分で選んだ場合は空）
   let bpm = 128;
   // Seed for the chart generator. Solo play rolls a fresh one each song; in versus
   // the room shares one seed so every player faces the identical chart.
@@ -175,9 +176,11 @@
   retryBtn.addEventListener('click', function(){ showScreen('play'); resetPlayState(); beginPlayback(); });
   changeBtn.addEventListener('click', function(){ showScreen('start'); });
 
+  // 対戦モジュールがロビーや観戦画面を足すので、決め打ちの3画面ではなく
+  // .screen を持つ要素すべてを対象にする（さもないと画面が重なって表示される）
   function showScreen(name){
-    Object.keys(screens).forEach(function(k){
-      screens[k].classList.toggle('hidden', k !== name);
+    document.querySelectorAll('.screen').forEach(function(el){
+      el.classList.toggle('hidden', el.id !== name);
     });
   }
 
@@ -594,9 +597,19 @@
     onFinish: null,   // set by versus; receives {score,maxCombo,rank,counts}
 
     hasSong: function(){ return !!audioURL; },
+
+    // 対戦でホストから受け取った音源を、自分の再生用にセットする
+    setSongBlob: function(blob, name){
+      if(audioURL) URL.revokeObjectURL(audioURL);
+      audioURL = URL.createObjectURL(blob);
+      receivedSongName = name || '';
+      return audioURL;
+    },
     getSongInfo: function(){
       const f = audioInput.files && audioInput.files[0];
-      return f ? { name: f.name } : null;
+      if(f) return { name: f.name, file: f };
+      if(receivedSongName) return { name: receivedSongName, file: null }; // 受信した曲
+      return null;
     },
 
     // Read the duration of the locally chosen file without starting a match.
