@@ -17,16 +17,27 @@ html,body{
   -webkit-user-select:none; user-select:none;
 }
 h1,h2,.display{ font-family: 'Zen Maru Gothic', sans-serif; }
-#app{ position:relative; width:100vw; height:100vh; overflow:hidden; }
+#app{
+  position:relative; width:100vw; overflow:hidden;
+  /* iOSのSafariでは 100vh がアドレスバーの内側まで含んだ高さになるため、
+     画面下部がバーの裏に隠れ、しかも溢れていない扱いなのでスクロールも
+     できなくなる。dvh（実際に見えている高さ）を優先して使う */
+  height:100vh;
+  height:100dvh;
+}
 .screen{
   position:absolute; inset:0; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; padding:24px;
+  align-items:center; justify-content:center;
   transition: opacity .35s ease; text-align:center;
   /* 画面より内容が高いときはスクロールさせる。素の center だと上下が
      見切れて手が届かなくなるため、対応ブラウザでは safe center に上書きする */
   overflow-y:auto; overflow-x:hidden;
   justify-content:safe center;
   -webkit-overflow-scrolling:touch;
+  /* ホームバーやノッチのぶんも避ける */
+  padding:24px;
+  padding-bottom:max(24px, env(safe-area-inset-bottom));
+  padding-top:max(24px, env(safe-area-inset-top));
 }
 /* プレイ画面だけはゲーム中にスクロールされると困るので固定 */
 #play{ overflow:hidden; }
@@ -41,7 +52,9 @@ h1,h2,.display{ font-family: 'Zen Maru Gothic', sans-serif; }
 /* ---------- Desktop / Mac layout ---------- */
 @media (min-width:720px){
   #app{
-    max-width:480px; height:calc(100vh - 48px); max-height:900px; margin:24px auto;
+    max-width:480px; max-height:900px; margin:24px auto;
+    height:calc(100vh - 48px);
+    height:calc(100dvh - 48px);
     border-radius:28px; box-shadow:0 30px 90px rgba(0,0,0,.55);
     border:1px solid #3B2864;
   }
@@ -118,7 +131,11 @@ button.ghost{
 }
 
 /* ---------- PLAY SCREEN ---------- */
-#play{ justify-content:space-between; padding:18px 18px 26px; touch-action:none; }
+#play{
+  justify-content:space-between; touch-action:none;
+  padding:18px 18px 26px;
+  padding-bottom:max(26px, env(safe-area-inset-bottom));
+}
 .hud{ width:100%; display:flex; justify-content:space-between; align-items:flex-start; }
 .hud .block{ text-align:left; }
 .hud .label{ font-size:10px; color:var(--text-dim); letter-spacing:.16em; }
@@ -465,3 +482,15 @@ button.ghost{
 #lobbyRoom button.primary{ margin-top:14px; padding:13px; }
 #lobbyRoom button.ghost{ margin-top:8px; padding:10px; }
 #lobbyRoom .playerList{ margin-top:10px; }
+
+/* 画面が低いスマホ（特にiOSでアドレスバーが出ている状態）でも
+   タイトル画面の項目が全部届くよう、縦の余白を詰める */
+@media (max-height: 760px){
+  #start p.sub{ margin-bottom:16px; font-size:12px; }
+  #start h1{ margin-bottom:2px; }
+  .card{ padding:18px; }
+  .upload-zone{ padding:14px 12px; }
+  .field{ margin-top:12px; }
+  button.primary{ margin-top:14px; padding:13px; }
+  button.ghost{ margin-top:8px; padding:11px; }
+}
