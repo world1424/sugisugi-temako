@@ -48,6 +48,9 @@
   let audioEl = null;
   let audioURL = null;
   let bpm = 128;
+  // Seed for the chart generator. Solo play rolls a fresh one each song; in versus
+  // the room shares one seed so every player faces the identical chart.
+  let chartSeed = 0;
   let notes = [];        // {time, dir, judged}
   let noteIdx = 0;
   let score = 0, combo = 0, maxCombo = 0;
@@ -191,6 +194,9 @@
   // ---------- Game flow ----------
   function startGame(){
     ensureAudioCtx(); // must be created from a user gesture, so do it on the start click
+    // Solo play rolls a fresh chart per song. Versus will instead hand down the
+    // room's seed here so every player faces the same chart.
+    chartSeed = randomSeed();
     showScreen('play');
     resetPlayState();
     if(audioEl){ audioEl.pause(); audioEl.currentTime = 0; }
@@ -236,13 +242,31 @@
     ['down','left','up','right']      // 時計回り
   ];
 
+  // Seeded PRNG (mulberry32). The chart must be reproducible: given the same seed,
+  // song duration, BPM and difficulty, every player gets a byte-identical chart.
+  // That is what makes score comparison — and therefore versus play — meaningful.
+  function makeRng(seed){
+    let s = seed >>> 0;
+    return function(){
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function randomSeed(){
+    return Math.floor(Math.random() * 0xFFFFFFFF) >>> 0;
+  }
+
   function buildChart(duration){
     const cfg = DIFFICULTIES[difficulty];
     const step = (60 / bpm) * cfg.beatMul;
     const endAt = duration - 1.5;
+    const rand = makeRng(chartSeed);
     notes = [];
 
-    let pattern = PATTERNS[Math.floor(Math.random() * PATTERNS.length)];
+    let pattern = PATTERNS[Math.floor(rand() * PATTERNS.length)];
     let pos = 0;
     let replaysLeft = 1; // play each pattern twice before switching
     let t = leadIn;
@@ -252,7 +276,7 @@
         if(replaysLeft > 0){
           replaysLeft--;
         } else {
-          pattern = PATTERNS[Math.floor(Math.random() * PATTERNS.length)];
+          pattern = PATTERNS[Math.floor(rand() * PATTERNS.length)];
           replaysLeft = 1;
         }
         pos = 0;
@@ -261,7 +285,7 @@
       pos++;
       // an occasional rest keeps the chart from reading as a flat metronome —
       // never in the opening bar, so the player gets a clear entry point
-      if(t > leadIn + step * 4 && Math.random() < cfg.restChance){
+      if(t > leadIn + step * 4 && rand() < cfg.restChance){
         t += step;
         continue;
       }
