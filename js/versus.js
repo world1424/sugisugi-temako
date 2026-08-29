@@ -489,29 +489,107 @@ window.addEventListener('load', function(){
   g.onProgress = function(p){
     publishSelf({
       score: p.score, combo: p.combo, maxCombo: p.maxCombo,
-      heat: p.heat, costume: p.costume, fever: p.fever
+      heat: p.heat, costume: p.costume, fever: p.fever,
+      judge: p.judge || '', judgeSeq: p.judgeSeq || 0
     });
     renderRivals();
   };
   g.onFinish = function(r){
     publishSelf({ score: r.score, maxCombo: r.maxCombo, rank: r.rank, finished: true });
+    // 対戦中はソロ用のボタンを隠し、部屋に戻る導線だけ出す
+    if(roomCode){
+      $('backToRoomBtn').classList.remove('hidden');
+      $('retryBtn').classList.add('hidden');
+      $('changeBtn').classList.add('hidden');
+    }
   };
 });
 
+// ---------- 対戦後に部屋へ戻る ----------
+$('backToRoomBtn').addEventListener('click', async function(){
+  if(!roomCode){ restoreResultButtons(); Game().showScreen('start'); return; }
+  matchStarted = false;
+  $('rivalPanel').classList.add('hidden');
+  restoreResultButtons();
+
+  // 次の対戦に備えて自分の成績を初期化する
+  await publishSelf({
+    ready:false, finished:false, score:0, combo:0, maxCombo:0,
+    heat:8, costume:'casual', fever:false, rank:'-', judge:'', judgeSeq:0
+  });
+  $('readyBtn').textContent = '準備完了';
+  // 部屋主は部屋の状態も待機に戻す（これをしないと次のカウントダウンが始まらない）
+  if(isHost){
+    try { await update(ref(db,'rooms/'+roomCode+'/meta'), { state:'lobby', startAt:0 }); }
+    catch(e){ /* 失敗しても退出はできる */ }
+  }
+  msg('roomMsg','もう一度あそぶには、全員が準備完了にしてください');
+  show('lobby');
+});
+
+function restoreResultButtons(){
+  $('backToRoomBtn').classList.add('hidden');
+  $('retryBtn').classList.remove('hidden');
+  $('changeBtn').classList.remove('hidden');
+}
+
 const COSTUME_LABEL = { casual:'私服', idol:'アイドル', milk:'M!LK' };
+
+// 相手の判定は数百msごとにしか届かないので、届いた瞬間に一定時間だけ
+// 表情と判定文字を出し、その後は待機の絵に戻す
+const JUDGE_LABEL = { perfect:'PERFECT', good:'GOOD', miss:'MISS' };
+const REACT_SPRITE = { perfect:'heart', good:'happy', miss:'sad' };
+const rivalReact = {};   // uid -> { seq, until }
+const REACT_MS = 550;
 
 function renderRivals(){
   const panel = $('rivalPanel');
   if(!roomCode || isSpectator){ panel.classList.add('hidden'); return; }
   const others = Object.entries(lastPlayers).filter(([id]) => id !== uid);
   if(!others.length){ panel.innerHTML = ''; return; }
-  panel.innerHTML = others.map(function([,p]){
+  const now = Date.now();
+
+  panel.innerHTML = others.map(function([id,p]){
+    const st = trackReact(id, p, now);
+    const costume = p.costume || 'casual';
+    const face = Game().spriteFor(costume, st.active ? REACT_SPRITE[st.judge] : 'idle');
     return '<div class="rival' + (p.fever ? ' fever' : '') + '">'
+      + '<img class="rivalFace" src="' + face + '" alt="">'
       + '<div class="rname">' + esc(p.name) + '</div>'
       + '<div class="rscore">' + (p.score||0) + '</div>'
-      + '<div class="rmeta">' + (p.combo||0) + ' combo · ' + (COSTUME_LABEL[p.costume]||'') + '</div>'
+      + '<div class="rmeta">' + (p.combo||0) + ' combo · ' + (COSTUME_LABEL[costume]||'') + '</div>'
+      + (st.active
+          ? '<div class="rjudge ' + st.judge + '">' + (JUDGE_LABEL[st.judge]||'') + '</div>'
+          : '')
       + '</div>';
   }).join('');
+
+  scheduleReactRefresh();
+}
+
+// 新しい判定が届いたら表示期限を延ばす。届かない間は自然に消える
+function trackReact(id, p, now){
+  const seq = p.judgeSeq || 0;
+  const judge = p.judge || '';
+  let st = rivalReact[id];
+  if(!st){ st = rivalReact[id] = { seq: -1, until: 0, judge: '' }; }
+  if(seq !== st.seq && judge){
+    st.seq = seq; st.judge = judge; st.until = now + REACT_MS;
+  }
+  return { active: now < st.until && !!st.judge, judge: st.judge };
+}
+
+// 相手からの更新が止まっても、表示期限が切れたら待機の絵に戻す
+let reactTimer = null;
+function scheduleReactRefresh(){
+  if(reactTimer) return;
+  const pending = Object.values(rivalReact).some(s => Date.now() < s.until);
+  if(!pending) return;
+  reactTimer = setTimeout(function(){
+    reactTimer = null;
+    renderRivals();
+    renderSpectatorBoard();
+  }, REACT_MS + 60);
 }
 
 // ---------- 観戦ボード ----------
@@ -521,20 +599,28 @@ function renderSpectatorBoard(){
   const entries = Object.entries(lastPlayers)
     .sort((a,b) => (b[1].score||0) - (a[1].score||0));
   if(!entries.length){ board.innerHTML = '<div class="netNote">プレイヤーを待っています…</div>'; return; }
-  board.innerHTML = entries.map(function([,p], i){
+  const now = Date.now();
+  board.innerHTML = entries.map(function([id,p], i){
+    const st = trackReact(id, p, now);
+    const costume = p.costume || 'casual';
+    const face = Game().spriteFor(costume, st.active ? REACT_SPRITE[st.judge] : 'idle');
     return '<div class="specRow' + (p.fever ? ' fever' : '') + '">'
       + '<div class="specRank">' + (i+1) + '</div>'
+      + '<img class="specFace" src="' + face + '" alt="">'
       + '<div class="specMain">'
       +   '<div class="specName">' + esc(p.name)
-      +     '<span class="costumeTag">' + (COSTUME_LABEL[p.costume]||'') + '</span>'
+      +     '<span class="costumeTag">' + (COSTUME_LABEL[costume]||'') + '</span>'
       +     (p.fever ? '<span class="feverTag">FEVER</span>' : '')
       +     (p.finished ? '<span class="doneTag">終了 ' + esc(p.rank||'') + '</span>' : '')
       +   '</div>'
-      +   '<div class="specScore">' + (p.score||0) + '</div>'
+      +   '<div class="specScore">' + (p.score||0)
+      +     (st.active ? '<span class="specJudge ' + st.judge + '">' + (JUDGE_LABEL[st.judge]||'') + '</span>' : '')
+      +   '</div>'
       +   '<div class="specSub">' + (p.combo||0) + ' combo</div>'
       +   '<div class="specHeat"><i style="width:' + Math.max(0,Math.min(100,p.heat||0)) + '%"></i></div>'
       + '</div></div>';
   }).join('');
+  scheduleReactRefresh();
 }
 
 // ---------- 退出 ----------
@@ -546,9 +632,11 @@ async function leaveRoom(note){
   $('countdown').classList.add('hidden');
   $('rivalPanel').classList.add('hidden');
   unsubscribeRoom();
+  restoreResultButtons();
   const code = roomCode, wasHost = isHost, wasSpec = isSpectator;
   roomCode = null; isHost = false; isSpectator = false;
   songReceived = false; downloadedFor = null; songUploading = false;
+  for(const k in rivalReact) delete rivalReact[k];
   matchStarted = false;
   lastMeta = null; lastPlayers = {};
   if(code && uid && !wasSpec){

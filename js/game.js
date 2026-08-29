@@ -71,6 +71,9 @@
   let cutinShown = false; // one cut-in per song from the combo milestone (fever can also trigger it)
   let versusMode = false; // true while playing an online match (see window.Temako)
   let lastEmit = 0;       // throttle timestamp for versus progress updates
+  let emitTimer = null;   // 送信の間引き用（末尾送信のタイマー）
+  let lastJudge = '';     // 直近の判定。相手の画面に演出を出すために送る
+  let judgeSeq = 0;       // 同じ判定が続いても「新しい判定」と分かるようにする連番
   let primed = null;      // ユーザー操作中に用意しておいた音声要素 {el,url}
   let awaitingTap = false;// 再生がブロックされ、タップ待ちの状態か
   let playStartedAtMs = 0;// 本来の開始時刻（復帰時に位置を合わせるのに使う）
@@ -481,6 +484,7 @@
     // heat only builds outside fever — during fever the gauge shows time remaining
     if(!fever) heat = Math.min(100, heat + cfg.hitBonus[kind]);
     reactMood = kind; reactUntil = performance.now() + 260;
+    lastJudge = kind; judgeSeq++;
     playHitSound(kind);
     flashLane(dir, kind);
     flashJudge(kind === 'perfect' ? 'PERFECT' : 'GOOD', kind);
@@ -495,6 +499,7 @@
     // a miss never cuts fever short — it's the payoff for having filled the gauge
     if(!fever) heat = Math.max(0, heat - DIFFICULTIES[difficulty].missPenalty);
     reactMood = 'miss'; reactUntil = performance.now() + 260;
+    lastJudge = 'miss'; judgeSeq++;
     playHitSound('miss');
     flashJudge('MISS', 'miss');
     updateHud();
@@ -551,15 +556,31 @@
   // Push our live state to the room, throttled so a dense HARD chart doesn't
   // spam the database (a hit can land several times per second).
   const EMIT_INTERVAL = 200; // ms
+  function sendProgress(){
+    api.onProgress({
+      score: score, combo: combo, maxCombo: maxCombo,
+      heat: Math.round(heat), costume: costume, fever: fever,
+      judge: lastJudge, judgeSeq: judgeSeq
+    });
+  }
+
+  // 先頭と末尾の両方で送る。末尾を送らないと、間隔内に起きた最後の判定が
+  // 相手の画面に出ないまま消えてしまう
   function emitProgress(){
     if(!versusMode || !api.onProgress) return;
     const now = performance.now();
-    if(now - lastEmit < EMIT_INTERVAL) return;
-    lastEmit = now;
-    api.onProgress({
-      score: score, combo: combo, maxCombo: maxCombo,
-      heat: Math.round(heat), costume: costume, fever: fever
-    });
+    const wait = EMIT_INTERVAL - (now - lastEmit);
+    if(wait <= 0){
+      lastEmit = now;
+      sendProgress();
+      return;
+    }
+    if(emitTimer) return;
+    emitTimer = setTimeout(function(){
+      emitTimer = null;
+      lastEmit = performance.now();
+      if(versusMode) sendProgress();
+    }, wait);
   }
 
   function updateHeat(){
@@ -709,6 +730,13 @@
       if(rafId) cancelAnimationFrame(rafId);
       if(audioEl){ audioEl.pause(); }
       showScreen('start');
+    },
+
+    // 相手のまこを描くための画像パス。kind は 'idle'|'happy'|'sad'|'heart'
+    spriteFor: function(costume, kind){
+      const set = MASCOT_SPRITES[costume] || MASCOT_SPRITES.casual;
+      if(kind === 'idle') return set.idle[0];
+      return set[kind] || set.idle[0];
     },
 
     showScreen: showScreen

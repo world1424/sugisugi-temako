@@ -511,3 +511,31 @@ button.ghost{
   font-family:'Zen Maru Gothic',sans-serif;
 }
 .tapSub{ font-size:11px; color: var(--text-dim); margin-top:6px; }
+
+/* 相手の反応（方式A：判定と表情を映す） */
+.rival{ display:flex; flex-direction:column; align-items:center; }
+.rivalFace{
+  width:44px; height:44px; object-fit:contain; margin-bottom:2px;
+}
+.rjudge{
+  font-size:11px; font-weight:900; margin-top:2px;
+  font-family:'Zen Maru Gothic',sans-serif;
+  animation: rjudgePop .35s ease-out;
+}
+@keyframes rjudgePop{
+  from{ transform:scale(.7); opacity:.3; }
+  to{ transform:scale(1); opacity:1; }
+}
+.rjudge.perfect{ color: var(--gold); }
+.rjudge.good{ color: var(--cyan); }
+.rjudge.miss{ color: var(--pink); }
+
+.specFace{ width:52px; height:52px; object-fit:contain; flex-shrink:0; }
+.specJudge{
+  font-size:12px; font-weight:900; margin-left:8px; vertical-align:middle;
+  font-family:'Zen Maru Gothic',sans-serif;
+  animation: rjudgePop .35s ease-out;
+}
+.specJudge.perfect{ color: var(--gold); }
+.specJudge.good{ color: var(--cyan); }
+.specJudge.miss{ color: var(--pink); }

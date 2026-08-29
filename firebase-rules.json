@@ -32,6 +32,8 @@
             "ready":     { ".validate": "newData.isBoolean()" },
             "finished":  { ".validate": "newData.isBoolean()" },
             "rank":      { ".validate": "newData.isString() && newData.val().length <= 2" },
+            "judge":     { ".validate": "newData.isString() && newData.val().length <= 8" },
+            "judgeSeq":  { ".validate": "newData.isNumber() && newData.val() >= 0" },
             "$other":    { ".validate": false }
           }
         },
