@@ -24,6 +24,8 @@
   const reactImg = byId('reactImg');
   const retryBtn = byId('retryBtn');
   const changeBtn = byId('changeBtn');
+  // 古いHTMLがキャッシュされている場合に備え、無ければ何もしないダミーを使う
+  const tapPrompt = byId('tapPrompt') || { classList: { add:function(){}, remove:function(){} } };
 
   function byId(id){ return document.getElementById(id); }
 
@@ -69,6 +71,9 @@
   let cutinShown = false; // one cut-in per song from the combo milestone (fever can also trigger it)
   let versusMode = false; // true while playing an online match (see window.Temako)
   let lastEmit = 0;       // throttle timestamp for versus progress updates
+  let primed = null;      // ユーザー操作中に用意しておいた音声要素 {el,url}
+  let awaitingTap = false;// 再生がブロックされ、タップ待ちの状態か
+  let playStartedAtMs = 0;// 本来の開始時刻（復帰時に位置を合わせるのに使う）
 
   const COSTUME_COMBO = 10; // combo needed to unlock the idol costume
   const MILK_COMBO = 20;    // combo needed to unlock the M!LK costume
@@ -173,6 +178,13 @@
     bpmVal.textContent = bpm;
   });
 
+  if(tapPrompt.addEventListener){
+    tapPrompt.addEventListener('pointerdown', function(e){
+      e.stopPropagation(); // この操作はレーン入力として拾わない
+      resumeFromTap();
+    });
+  }
+
   startBtn.addEventListener('click', startGame);
   retryBtn.addEventListener('click', function(){ showScreen('play'); resetPlayState(); beginPlayback(); });
   changeBtn.addEventListener('click', function(){ showScreen('start'); });
@@ -214,13 +226,24 @@
     showScreen('play');
     resetPlayState();
     if(audioEl){ audioEl.pause(); audioEl.currentTime = 0; }
-    audioEl = new Audio(audioURL);
-    audioEl.addEventListener('loadedmetadata', function(){
+
+    // iOSはユーザー操作の中で一度再生した要素しか、後からプログラムで
+    // 再生できない。準備完了ボタンで用意しておいた要素があれば使い回す。
+    if(primed && primed.url === audioURL){ audioEl = primed.el; }
+    else { audioEl = new Audio(audioURL); }
+    primed = null;
+
+    const onReady = function(){
       buildChart((opts && opts.duration) || audioEl.duration || 60);
       beginPlayback();
-    }, { once:true });
+    };
     audioEl.addEventListener('ended', endGame);
-    audioEl.load();
+    // 使い回した要素は読み込み済みで loadedmetadata が二度と発火しない
+    if(audioEl.readyState >= 1){ onReady(); }
+    else {
+      audioEl.addEventListener('loadedmetadata', onReady, { once:true });
+      audioEl.load();
+    }
   }
 
   function resetPlayState(){
@@ -310,9 +333,35 @@
 
   function beginPlayback(){
     audioEl.currentTime = 0;
-    audioEl.play().catch(function(){});
+    playStartedAtMs = Date.now();
+    awaitingTap = false;
+    tapPrompt.classList.add('hidden');
+    // 再生が拒否されると currentTime が0のまま進まず、ノーツが1つも
+    // 出ないまま画面だけ始まってしまう。拒否されたら復帰用の案内を出す。
+    const p = audioEl.play();
+    if(p && p.catch) p.catch(function(){ askForTap(); });
     if(rafId) cancelAnimationFrame(rafId);
     tick();
+  }
+
+  function askForTap(){
+    awaitingTap = true;
+    tapPrompt.classList.remove('hidden');
+  }
+
+  // 案内をタップしたら、本来進んでいるはずの位置から再生を始める。
+  // 待っている間に過ぎた分は、プレイヤーの責任ではないのでミス扱いにしない。
+  function resumeFromTap(){
+    if(!awaitingTap) return;
+    awaitingTap = false;
+    tapPrompt.classList.add('hidden');
+    const elapsed = Math.max(0, (Date.now() - playStartedAtMs) / 1000);
+    audioEl.play().then(function(){
+      try { audioEl.currentTime = elapsed; } catch(_){}
+      for(let i=0;i<notes.length;i++){
+        if(notes[i].time < elapsed && !notes[i].judged) notes[i].judged = true;
+      }
+    }).catch(function(){ askForTap(); });
   }
 
   function tick(){
@@ -598,6 +647,22 @@
     onFinish: null,   // set by versus; receives {score,maxCombo,rank,counts}
 
     hasSong: function(){ return !!audioURL; },
+
+    // iOS対策。ユーザー操作の中で一度だけ再生→停止しておくと、
+    // 数秒後にカウントダウンから自動で再生を始めても拒否されなくなる。
+    primeAudio: function(){
+      if(!audioURL) return;
+      if(primed && primed.url === audioURL) return;
+      const a = new Audio(audioURL);
+      a.preload = 'auto';
+      a.load();
+      const p = a.play();
+      if(p && p.then){
+        p.then(function(){ a.pause(); try { a.currentTime = 0; } catch(_){} })
+         .catch(function(){ /* 拒否されてもタップ復帰の仕組みで救う */ });
+      }
+      primed = { el: a, url: audioURL };
+    },
 
     // 対戦でホストから受け取った音源を、自分の再生用にセットする
     setSongBlob: function(blob, name){

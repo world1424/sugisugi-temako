@@ -494,3 +494,20 @@ button.ghost{
   button.primary{ margin-top:14px; padding:13px; }
   button.ghost{ margin-top:8px; padding:11px; }
 }
+
+/* 音声の再生がブロックされたときの復帰用オーバーレイ */
+#tapPrompt{
+  position:absolute; inset:0; z-index:20;
+  display:flex; align-items:center; justify-content:center;
+  background: rgba(21,12,41,.86); cursor:pointer;
+}
+#tapPrompt.hidden{ display:none; }
+.tapBox{
+  background: var(--surface); border:1px solid var(--gold); border-radius:18px;
+  padding:22px 26px; text-align:center; box-shadow:0 0 24px rgba(255,210,63,.35);
+}
+.tapBig{
+  font-size:18px; font-weight:900; color: var(--gold);
+  font-family:'Zen Maru Gothic',sans-serif;
+}
+.tapSub{ font-size:11px; color: var(--text-dim); margin-top:6px; }

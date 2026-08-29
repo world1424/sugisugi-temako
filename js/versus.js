@@ -414,6 +414,11 @@ $('readyBtn').addEventListener('click', async function(){
   if(!isHost && !songReceived){
     return msg('roomMsg','ホストが曲を配信するのを待っています','err');
   }
+  // ここはユーザー操作なので、このタイミングで音声を用意しておく。
+  // 対戦の開始はカウントダウン後のタイマーから起きるため、これをしないと
+  // iOSでは再生が拒否され、ノーツが1つも降ってこない状態になる。
+  Game().primeAudio();
+
   const me = lastPlayers[uid] || {};
   const next = !me.ready;
   await publishSelf({ ready: next });

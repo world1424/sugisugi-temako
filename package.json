@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "python3 tools/dev-server.py",
+    "bump": "python3 tools/bump-version.py",
     "start": "npm run dev"
   }
 }
