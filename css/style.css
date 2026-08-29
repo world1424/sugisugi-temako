@@ -22,13 +22,26 @@ h1,h2,.display{ font-family: 'Zen Maru Gothic', sans-serif; }
   position:absolute; inset:0; display:flex; flex-direction:column;
   align-items:center; justify-content:center; padding:24px;
   transition: opacity .35s ease; text-align:center;
+  /* 画面より内容が高いときはスクロールさせる。素の center だと上下が
+     見切れて手が届かなくなるため、対応ブラウザでは safe center に上書きする */
+  overflow-y:auto; overflow-x:hidden;
+  justify-content:safe center;
+  -webkit-overflow-scrolling:touch;
 }
+/* プレイ画面だけはゲーム中にスクロールされると困るので固定 */
+#play{ overflow:hidden; }
+/* 画面（.screen）はフェードで切り替えるので場所を保ったまま透明にする。
+   それ以外（ロビー内のカードやボタン等）は display:none にしないと、
+   透明なまま高さを占有して余白になり、画面が縦に溢れてしまう */
 .hidden{ opacity:0; pointer-events:none; }
+:not(.screen).hidden{ display:none; }
+/* ID セレクタで display を指定している要素は詳細度で勝てないので個別に打ち消す */
+#countdown.hidden, #rivalPanel.hidden{ display:none; }
 
 /* ---------- Desktop / Mac layout ---------- */
 @media (min-width:720px){
   #app{
-    max-width:480px; max-height:900px; margin:24px auto;
+    max-width:480px; height:calc(100vh - 48px); max-height:900px; margin:24px auto;
     border-radius:28px; box-shadow:0 30px 90px rgba(0,0,0,.55);
     border:1px solid #3B2864;
   }
@@ -437,3 +450,15 @@ button.ghost{
   40%{ transform:scale(1.1); opacity:1; }
   100%{ transform:scale(1); opacity:1; }
 }
+
+/* ロビーは項目が多く縦に伸びやすいので、余白を詰めて収まりを良くする */
+#lobby{ padding:18px; }
+#lobby .lobbyHead{ margin:0 0 12px; }
+#lobby .card{ padding:18px; }
+#lobbyRoom .roomCodeBox{ padding:10px; margin-bottom:12px; }
+#lobbyRoom .roomCodeVal{ font-size:32px; }
+#lobbyRoom .upload-zone{ padding:14px 12px; }
+#lobbyRoom .field{ margin-top:12px; }
+#lobbyRoom button.primary{ margin-top:14px; padding:13px; }
+#lobbyRoom button.ghost{ margin-top:8px; padding:10px; }
+#lobbyRoom .playerList{ margin-top:10px; }

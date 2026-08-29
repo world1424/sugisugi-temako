@@ -8,7 +8,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-import { getDatabase, ref, get, set, update, remove, onValue, off, onDisconnect }
+import { getDatabase, ref, get, set, update, remove, onValue, onDisconnect }
   from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
 
 const firebaseConfig = {
@@ -206,7 +206,8 @@ async function enterRoom(code){
 function subscribeRoom(){
   unsubscribeRoom();
   const r = ref(db, 'rooms/'+roomCode);
-  const cb = onValue(r, function(snap){
+  // v9以降の onValue は「解除用の関数」を返す。off() に渡すのは誤りで例外になる
+  const unsub = onValue(r, function(snap){
     const v = snap.val();
     if(!v || !v.meta){
       // ホストが部屋を消した等
@@ -219,7 +220,7 @@ function subscribeRoom(){
   }, function(err){
     msg('roomMsg','購読エラー：'+err.message,'err');
   });
-  roomUnsub = function(){ off(r, 'value', cb); };
+  roomUnsub = unsub;
 }
 
 function unsubscribeRoom(){
