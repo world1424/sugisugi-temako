@@ -161,6 +161,7 @@
     if(!f) return;
     if(audioURL) URL.revokeObjectURL(audioURL);
     audioURL = URL.createObjectURL(f);
+    receivedSongName = ''; // 自分で選び直したので、受信した曲の情報は破棄する
     fileName.textContent = f.name;
     uploadLabel.textContent = '読み込み完了！';
     uploadZone.classList.add('has-file');
@@ -606,9 +607,11 @@
       return audioURL;
     },
     getSongInfo: function(){
+      // 受信した曲を優先する。setSongBlob が audioURL を差し替えているので、
+      // 入力欄に自分で選んだ古いファイルが残っていてもそちらは使われない
+      if(receivedSongName) return { name: receivedSongName, file: null };
       const f = audioInput.files && audioInput.files[0];
       if(f) return { name: f.name, file: f };
-      if(receivedSongName) return { name: receivedSongName, file: null }; // 受信した曲
       return null;
     },
 

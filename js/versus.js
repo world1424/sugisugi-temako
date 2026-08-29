@@ -136,6 +136,7 @@ const MAX_SONG_BYTES = 12 * 1024 * 1024; // 12MB。これ以上は転送が重�
 const CHUNK_LEN = 160 * 1024;            // base64文字列を刻む長さ
 let songUploading = false;
 let downloadedFor = null;                // 受信済みの音源キー（重複ダウンロード防止）
+let songReceived = false;                // ホストの曲を受け取ったか（ゲスト用）
 
 function fileToDataUrl(file){
   return new Promise(function(resolve, reject){
@@ -195,6 +196,7 @@ async function downloadSong(meta){
     const blob = await (await fetch(dataUrl)).blob();
     Game().setSongBlob(blob, meta.name);
     myDuration = await Game().probeDuration();
+    songReceived = true;
     $('vsUploadLabel').textContent = 'ホストの曲を受信しました';
     $('vsFileName').textContent = meta.name;
     $('vsUploadZone').classList.add('has-file');
@@ -289,10 +291,24 @@ async function enterRoom(code){
     $('vsUploadLabel').textContent = '課題曲を選ぶ';
     $('vsUploadZone').querySelector('.filetypes').textContent = '選んだ曲が参加者全員に配信されます';
   }
+  songReceived = false;
+  downloadedFor = null;
   msg('roomMsg', isSpectator ? '観戦モードです。対戦の開始を待っています…' : '');
 
   subscribeRoom();
   if(isSpectator) show('spectate');
+
+  // タイトル画面で先に曲を選んでから部屋を作った場合、選択時点では部屋が
+  // 無いので配信されない。入室時に選択済みなら、ここで配信する。
+  if(isHost){
+    const info = Game().getSongInfo();
+    if(info && info.file){
+      if(!myDuration) myDuration = await Game().probeDuration();
+      uploadSong(info.file);
+    } else {
+      msg('songWarn','課題曲を選んでください。選んだ曲が参加者に配信されます','warn');
+    }
+  }
 }
 
 // ---------- 部屋の購読 ----------
@@ -390,9 +406,13 @@ $('vsDiffGroup').addEventListener('click', function(e){
 // ---------- 準備完了 ----------
 $('readyBtn').addEventListener('click', async function(){
   if(songUploading) return msg('roomMsg','曲の配信が終わるまで待ってください','warn');
-  if(!Game().hasSong()){
-    return msg('roomMsg', isHost ? '先に課題曲を選んでください'
-                                 : 'ホストが曲を配信するのを待っています','err');
+  if(isHost && !Game().hasSong()){
+    return msg('roomMsg','先に課題曲を選んでください','err');
+  }
+  // ゲストは「ホストから受け取った曲」を持っていないと準備完了にできない。
+  // 自分がソロ用に選んでいた曲で始めてしまうと、全員が別の曲で遊ぶことになる
+  if(!isHost && !songReceived){
+    return msg('roomMsg','ホストが曲を配信するのを待っています','err');
   }
   const me = lastPlayers[uid] || {};
   const next = !me.ready;
@@ -523,6 +543,7 @@ async function leaveRoom(note){
   unsubscribeRoom();
   const code = roomCode, wasHost = isHost, wasSpec = isSpectator;
   roomCode = null; isHost = false; isSpectator = false;
+  songReceived = false; downloadedFor = null; songUploading = false;
   matchStarted = false;
   lastMeta = null; lastPlayers = {};
   if(code && uid && !wasSpec){
